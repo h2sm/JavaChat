@@ -10,9 +10,14 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
+
+import static util.Logs.log;
 
 public class PersistSocketTransport implements Transport {
     private Socket socket;
+    private String name;
+    private final Scanner scanner = new Scanner(System.in);
 
     @Override
     public void connect() {
@@ -25,9 +30,14 @@ public class PersistSocketTransport implements Transport {
     }
 
     private void tryConnect() throws Exception {
+        askForName();
         closeSocketIfRequired();
         socket = new Socket();
         socket.connect(Settings.ADDRESS);
+    }
+    private void askForName() throws Exception{
+        log("Enter your name");
+        name = scanner.next();
     }
 
     private void closeSocketIfRequired() throws Exception {
@@ -54,7 +64,7 @@ public class PersistSocketTransport implements Transport {
         var in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
                 StandardCharsets.UTF_8));
 
-        out.println(message);
+        out.println("[" + name+ "]:" + message);
         return in.readLine();
     }
 
