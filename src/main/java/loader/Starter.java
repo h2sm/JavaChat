@@ -1,8 +1,8 @@
 package loader;
 
 import client.Constructor;
-import client.Main;
-import server.App;
+import client.ClientStart;
+import server.ServerStart;
 import server.PersistSocketServer;
 
 import static util.Logs.log;
@@ -20,7 +20,7 @@ public class Starter {
 //        Constructor.construct().run();
 //        log("Client Stops,,,,");
 
-        new Thread(new Main()).start();
-        new Thread(new App()).start();
+        new Thread(new ClientStart()).start();
+        new Thread(new ServerStart()).start();
     }
 }

@@ -1,10 +1,10 @@
 package client;
 
-import server.App;
+
 
 import static util.Logs.log;
 
-public class Main implements Runnable{
+public class ClientStart implements Runnable{
 //    public static void main(String[] args) {
 //        log("Client starts...");
 //        Constructor.construct().run();
