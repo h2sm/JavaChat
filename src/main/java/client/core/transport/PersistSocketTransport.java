@@ -59,13 +59,14 @@ public class PersistSocketTransport implements Transport {
     }
 
     private String tryConverse(String message) throws Exception {
-        var out = new PrintWriter(socket.getOutputStream(), true,
-                StandardCharsets.UTF_8);
         var in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
-                StandardCharsets.UTF_8));
-
+                            StandardCharsets.UTF_8));
+        var out = new PrintWriter(socket.getOutputStream(), true,
+                            StandardCharsets.UTF_8);
         out.println("[" + name+ "]:" + message);
+
         return in.readLine();
+        //log(in.readLine() + " log");
     }
 
     @Override

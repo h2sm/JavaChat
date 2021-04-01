@@ -60,8 +60,8 @@ public class Core implements Runnable {
         transport.connect();
     }
 
-    private void performSend(Send command) {
-        var answer = transport.converse(command.getMessage());
+    private void performSend(Send msg) {
+        var answer = transport.converse(msg.getMessage());
         ui.showMessage(answer);
     }
 

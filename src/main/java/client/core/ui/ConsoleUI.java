@@ -60,9 +60,5 @@ public class ConsoleUI implements UI {
         System.out.println(message);
     }
 
-    @Override
-    public void getName(String name) {
-        log("Enter your name");
 
-    }
 }
