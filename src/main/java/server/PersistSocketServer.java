@@ -6,32 +6,27 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Date;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static util.Logs.log;
 
 public class PersistSocketServer implements Runnable {
-    protected static ArrayList<Socket> clients;
+    private static ArrayList<EchoProtocol> clients  = new ArrayList<>();
+    private static ExecutorService pool = Executors.newCachedThreadPool();
     @Override
     public void run() {
-        //var pool = Executors.newCachedThreadPool();
         try (var serverSocket = new ServerSocket()) {
             serverSocket.bind(Settings.ADDRESS);
-            clients = new ArrayList<>();
-            //clients = Collections.synchronizedList(new ArrayList<>());
             while (true) {
                     var clientSocket = serverSocket.accept();
                     log("connected " + clientSocket);
                     var echoProtocol = new EchoProtocol(clients,clientSocket);
-                    var thread = new Thread(echoProtocol);
-                    thread.start();
-                    clients.add(clientSocket);
-                    //new EchoProtocol(clientSocket).start();
-                    //clients.add(clientSocket);
-                    //pool.submit(new EchoProtocol(clientSocket,clients));
+                    clients.add(echoProtocol);
+                    pool.submit(echoProtocol);
             }
         }
         catch (Exception e) {
@@ -40,12 +35,19 @@ public class PersistSocketServer implements Runnable {
     }
 
     private static class EchoProtocol implements Runnable{
-        protected static ArrayList<Socket> clients;
-        private final Socket socket;
+        Date date = new Date();
+        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
 
-        public EchoProtocol(ArrayList<Socket> clients, Socket socket) {
+        protected static ArrayList<EchoProtocol> clients;
+        private final Socket socket;
+        private BufferedReader in;
+        private PrintWriter out;
+
+        public EchoProtocol(ArrayList<EchoProtocol> echoclients, Socket socket) throws Exception {
             this.socket = socket;
-            this.clients=clients;
+            clients=echoclients;
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+            out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
         }
 
         @Override
@@ -59,25 +61,29 @@ public class PersistSocketServer implements Runnable {
         }
 
         private void tryRun() throws Exception {
-
-            var in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
-                    StandardCharsets.UTF_8));
-
-
-            var msg = "";
-                while (msg != null) {
+            try {
+                var msg = "";
+                while (msg!=null){
                     msg = in.readLine();
                     log("received from " + socket + ": " + msg);
-                    for (Socket x : clients) {
-                        var out = new PrintWriter(x.getOutputStream(), true,
-                                StandardCharsets.UTF_8);
-                        out.println("SERVER ECHO: " + msg);
+                    toAll(msg);
+                }
+            }
+            finally {
+//                out.close();
+//                in.close();
+            }
 
-                    }
-                            //out.println("server echo: " + msg);
-                        }
-                    }
+
         }
 
+        private void toAll(String msg) {
+            if (msg != null){
+                for (EchoProtocol client : clients) {
+                   client.out.println(formatter.format(date) + " " + msg);
+                }
+            }
+        }
     }
+}
 

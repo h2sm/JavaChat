@@ -2,7 +2,7 @@ package server;
 
 import static util.Logs.log;
 
-public class ServerStart implements Runnable{
+public class App implements Runnable{
     @Override
     public void run() {
         log("Server starting...");
