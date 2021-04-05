@@ -57,33 +57,39 @@ public class PersistSocketServer implements Runnable {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            log("finished" + socket);
+            log("Finished socket " + socket);
         }
 
         private void tryRun() throws Exception {
-            try {
-                var msg = "";
-                while (msg!=null){
-                    msg = in.readLine();
-                    log("received from " + socket + ": " + msg);
-                    toAll(msg);
-                }
+            var pack = "";
+            while (pack!=null){
+                pack = in.readLine();
+                log("Received from " + socket + ": " + pack);
+                parseProtocol(pack);
+                //sendMessageToAll(msg);
             }
-            finally {
-//                out.close();
-//                in.close();
-            }
-
 
         }
-
-        private void toAll(String msg) {
-            if (msg != null){
-                for (EchoProtocol client : clients) {
-                   client.out.println(formatter.format(date) + " " + msg);
+        private void parseProtocol(String pack){
+            String delims = "[\\^\\]]+";
+            if (pack != null){
+                var arr = pack.split(delims);
+                var command = arr[0];
+                var userName = arr[1];
+                if (command.equals("T_MESSAGE")){
+                    var msg = arr[2];
+                    sendMessageToAll(userName, msg);
                 }
+                if(command.equals("T_REGISTER")){
+                    sendMessageToAll(userName, "hello");
+                }
+            }
+        }
+
+        private void sendMessageToAll(String userName, String msg) {
+            for (EchoProtocol client : clients) {
+                client.out.println(formatter.format(date) + "." + userName+ " says: " + msg);
             }
         }
     }
 }
-

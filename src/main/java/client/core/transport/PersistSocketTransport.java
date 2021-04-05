@@ -4,6 +4,8 @@ import client.core.Transport;
 import client.core.exception.*;
 import client.core.settings.Settings;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +18,8 @@ public class PersistSocketTransport implements Transport {
     private String name;
     private final Scanner scanner = new Scanner(System.in);
     private PerformMessages runnable;
+    private PrintWriter out;
+    private MessagingProtocol messagingProtocol;
 
     @Override
     public void connect() {
@@ -28,15 +32,28 @@ public class PersistSocketTransport implements Transport {
     }
 
     private void tryConnect() throws Exception {
-        askForName();
+        var name = askForName();
+        messagingProtocol = new MessagingProtocol(name);
         socket = new Socket();
         socket.connect(Settings.ADDRESS);
+        setPrintWriter();
+        registerOnServer();
         runnable = new PerformMessages(socket);
         runnable.start();
     }
-    private void askForName() throws Exception{
+    private void setPrintWriter() throws Exception {
+        out = new PrintWriter(socket.getOutputStream(), true,
+                StandardCharsets.UTF_8);//отдаем
+    }
+    private String askForName() throws Exception{
         log("Enter your name");
         name = scanner.next();
+        return name;
+    }
+    private void registerOnServer(){
+        if (socket.isConnected()){
+           out.println(messagingProtocol.constructRegistration());
+        }
     }
 
     private void closeSocketIfRequired() throws Exception {
@@ -62,10 +79,11 @@ public class PersistSocketTransport implements Transport {
     }
 
     private String tryConverse(String message) throws Exception {
-        var out = new PrintWriter(socket.getOutputStream(), true,
-                            StandardCharsets.UTF_8);//отдаем
+//        var out = new PrintWriter(socket.getOutputStream(), true,
+//                StandardCharsets.UTF_8);//отдаем
         if (message != null)
-            out.println("[" + name+ "]:" + message);
+            out.println(messagingProtocol.constructMessage(message));
+            //out.println("[" + name+ "]:" + message);
         return "sent!";
     }
 
