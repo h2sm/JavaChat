@@ -60,13 +60,14 @@ public class PersistSocketTransport implements Transport {
         if (socket != null && socket.isConnected()) {
 //            socket.shutdownInput();
 //            socket.shutdownOutput();
+            socket.shutdownOutput();
             runnable.interrupt();
             runnable.join();
         }
     }
 
     @Override
-    public String converse(String message) {
+    public String converse(String message) {//один поток заведует инпутом, второй - оутпутом
         if (socket == null || !socket.isConnected())
             throw new TransportException("connection required");
         if (message == null) throw new TransportException("msg is null");
@@ -99,7 +100,6 @@ public class PersistSocketTransport implements Transport {
     }
 
     private void tryDisconnect() throws Exception {
-        socket.shutdownOutput();
         closeSocketIfRequired();
     }
 }
