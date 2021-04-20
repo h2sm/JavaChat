@@ -23,14 +23,13 @@ public class PerformMessages extends Thread{
             e.printStackTrace();
         }
         String line;
-           try {
-               while ((line = in.readLine())!= null) {
+            try {
+                while ((line = in.readLine()) != null) {
                     System.out.println(line);
-               }
-           }
-           catch (Exception e){
-               e.printStackTrace();
-           }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
        }
     public void terminate() throws Exception {
         socket.shutdownInput();

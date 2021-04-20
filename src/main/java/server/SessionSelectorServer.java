@@ -37,7 +37,6 @@ public class SessionSelectorServer implements Runnable {
                         log("writable " + key);
                         ((EchoProtocol) key.attachment()).write();
                     }
-
                     iterator.remove();
                 }
             }

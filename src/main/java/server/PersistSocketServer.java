@@ -5,52 +5,53 @@ import server.settings.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static util.Logs.log;
 
 public class PersistSocketServer implements Runnable {
-    private static ArrayList<EchoProtocol> clients  = new ArrayList<>();
+    private static ArrayList<EchoProtocol> clients = new ArrayList<>();
     private static ExecutorService pool = Executors.newCachedThreadPool();
+
     @Override
     public void run() {
         try (var serverSocket = new ServerSocket()) {
             serverSocket.bind(Settings.ADDRESS);
             while (true) {
-                    var clientSocket = serverSocket.accept();
-                    log("connected " + clientSocket);
-                    var echoProtocol = new EchoProtocol(clients,clientSocket);
-                    clients.add(echoProtocol);
-                    pool.submit(echoProtocol);
+                var clientSocket = serverSocket.accept();
+                //clientSocket.setSoTimeout(3*1000);
+                log("connected " + clientSocket);
+                var echoProtocol = new EchoProtocol(clients, clientSocket);
+                clients.add(echoProtocol);
+                pool.submit(echoProtocol);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static class EchoProtocol implements Runnable{
+    private static class EchoProtocol implements Runnable {
         Date date = new Date();
         SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        private static final char GS = 0x1D;
+        private static final char RS = 0x1E;
 
         protected static ArrayList<EchoProtocol> clients;
         private final Socket socket;
-        private BufferedReader in;
+        private BufferedInputStream in;
         private PrintWriter out;
 
         public EchoProtocol(ArrayList<EchoProtocol> echoclients, Socket socket) throws Exception {
             this.socket = socket;
-            clients=echoclients;
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-//            in = socket.getInputStream();
+            clients = echoclients;
+            in = new BufferedInputStream(socket.getInputStream());
             out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
         }
 
@@ -64,58 +65,61 @@ public class PersistSocketServer implements Runnable {
             log("Finished socket " + socket);
         }
 
-        private String readInputStream(byte [] pack) throws Exception{
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            for (byte b: pack){
-                if ((char) b != 0x1E) baos.write(b);
+        private String readInputStream() throws Exception {
+            var baos = new ByteArrayOutputStream();
+            char ch = ' ';
+            while (ch != RS) {
+                int chInt = in.read();//проверить на -1 и выбросить исключение
+                if (chInt == -1) throw new IOException("Socket has been closed");
+                ch = (char) chInt;
+                baos.write(ch);
             }
-//            String message = "";
-//            while (in.available()!=0){//получаем из потока сообщение побайтово
-//                int piece = in.read();
-//                //byte[] mas = in.readAllBytes();
-//                if ((char)piece!=0x1E){
-//                    baos.write(piece);
-//                }
-//            }
-            return baos.toString(Charset.defaultCharset());
-            //return message;
-            //пока из in не прочитаем FS считывать очередной байт в массив байтов
-            //потом разделить массив на комманды и сообщение
-            //ByteArrayOutputStream -> bytearray -> string (utf8)
-            //в цикле пока байт не равен RS
-
-            //return ;
+            return baos.toString(StandardCharsets.UTF_8);
         }
 
         private void tryRun() throws Exception {
-            while (true){
-                byte[] pack = in.readLine().getBytes();
-                //if (pack.length!=0){
-                    var receivedString = readInputStream(pack);
-                    var parsedMessage = parseMessage(receivedString);
-                    log("Received from " + socket + ": " + parsedMessage);
-                    sendMessageToAll(parsedMessage);
-                //}
+//            ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
+//            scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
+//                @Override
+//                public void run() {
+//                    System.out.println(socket.isClosed() + " is closed?");
+//                }
+//            },0,5,TimeUnit.SECONDS);
+            while (true) {
+                var receivedString = readInputStream();
+                //log("RECEIVED STRING " + receivedString);
+                var parsedMessage = parseMessage(receivedString);
+                //log("Received from " + socket + ": " + parsedMessage);
+                sendMessageToAll(parsedMessage);
+                }
             }
 
-        }
-
-        private String parseMessage(String pack){//лучше parseMessage, возвращать message
-            var buff = pack.split(String.valueOf((char) 0x1D));
-            String command = buff[0];
-            String name = buff[1];
-            if (command.equals("T_MESSAGE")) {
-                var msg = buff[2];
-                return name + " says: " + msg;
-            }
-            else return "New Connected user " + name;
-
+        private String parseMessage(String pack) {
+            var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
+            if (buff[0].equals("T_REGISTER")) return "New connected user " + buff[1];
+            return buff[1] + " says: " + buff[2];
         }
 
         private void sendMessageToAll(String msg) {
             for (EchoProtocol client : clients) {
-                client.out.println(formatter.format(date) + " "+ msg);
+                client.out.println(formatter.format(date) + " " + msg);
             }
+        }
+
+        private void testTimer() {
+            ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
+            scheduledExecutorService.scheduleAtFixedRate(() -> {
+                try {
+                    runTask();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, 0, 3, TimeUnit.SECONDS);
+        }
+
+        private void runTask() {
+            String unit = "T_TEST" + RS;
+            sendMessageToAll(unit);
         }
     }
 }
