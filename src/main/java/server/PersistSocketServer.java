@@ -5,6 +5,7 @@ import server.settings.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -26,8 +27,8 @@ public class PersistSocketServer implements Runnable {
             serverSocket.bind(Settings.ADDRESS);
             while (true) {
                 var clientSocket = serverSocket.accept();
-                //clientSocket.setSoTimeout(3*1000);
                 log("connected " + clientSocket);
+                clientSocket.setSoTimeout(5*1000);
                 var echoProtocol = new EchoProtocol(clients, clientSocket);
                 clients.add(echoProtocol);
                 pool.submit(echoProtocol);
@@ -66,28 +67,31 @@ public class PersistSocketServer implements Runnable {
         }
 
         private String readInputStream() throws Exception {
-            var baos = new ByteArrayOutputStream();
-            char ch = ' ';
-            while (ch != RS) {
-                int chInt = in.read();//проверить на -1 и выбросить исключение
-                if (chInt == -1) throw new IOException("Socket has been closed");
-                ch = (char) chInt;
-                baos.write(ch);
-            }
-            return baos.toString(StandardCharsets.UTF_8);
+                var baos = new ByteArrayOutputStream();
+                char ch = ' ';
+                while (ch != RS) {
+                    int chInt = 0;
+                    try {
+                        chInt = in.read();
+                    }
+                    catch (Exception e){
+                        socket.close();
+                        throw new SocketException("Server Socket Timeout. No Messages were received.");
+                        //isTimeout=true;
+                        //e.printStackTrace();
+                        //log("socket timeout");
+                    }
+                    if (chInt == -1) throw new IOException("Socket has been closed by a client outage. Reconnect.");
+                    ch = (char) chInt;
+                    baos.write(ch);
+                }
+                return baos.toString(StandardCharsets.UTF_8);
         }
 
         private void tryRun() throws Exception {
-//            ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
-//            scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-//                @Override
-//                public void run() {
-//                    System.out.println(socket.isClosed() + " is closed?");
-//                }
-//            },0,5,TimeUnit.SECONDS);
             while (true) {
                 var receivedString = readInputStream();
-                //log("RECEIVED STRING " + receivedString);
+                log("RECEIVED STRING " + receivedString);
                 var parsedMessage = parseMessage(receivedString);
                 //log("Received from " + socket + ": " + parsedMessage);
                 sendMessageToAll(parsedMessage);

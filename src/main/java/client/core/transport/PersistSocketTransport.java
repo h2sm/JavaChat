@@ -15,17 +15,14 @@ public class PersistSocketTransport implements Transport {
     private Socket socket;
     private String name;
     private final Scanner scanner = new Scanner(System.in);
-    //private PerformMessages runnable;
     private PrintWriter out;
-//    private BufferedReader in;
     private MessagingProtocol messagingProtocol;
 
     @Override
     public void connect() {
         try {
             tryConnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             throw new TransportException(e);
         }
     }
@@ -35,10 +32,9 @@ public class PersistSocketTransport implements Transport {
         messagingProtocol = new MessagingProtocol(name);
         socket = new Socket();
         socket.connect(Settings.ADDRESS);
+        socket.setSoTimeout(3*1000);
         registerOnServer();
         readMessages();
-//        runnable = new PerformMessages(socket);
-//        runnable.start();
     }
 
     private String askForName() {
@@ -46,11 +42,12 @@ public class PersistSocketTransport implements Transport {
         name = scanner.next();
         return name;
     }
+
     private void registerOnServer() throws IOException {
-        if (socket.isConnected()){
+        if (socket.isConnected()) {
             out = new PrintWriter(socket.getOutputStream(), true,
                     StandardCharsets.UTF_8);//отдаем
-           out.println(messagingProtocol.constructRegistration());
+            out.println(messagingProtocol.constructRegistration());
         }
     }
 
@@ -58,8 +55,6 @@ public class PersistSocketTransport implements Transport {
         if (socket != null && socket.isConnected()) {
             socket.shutdownOutput();
             socket.close();
-            System.out.println("is closed? "+socket.isClosed());
-
         }
     }
 
@@ -70,20 +65,18 @@ public class PersistSocketTransport implements Transport {
         if (message == null) throw new TransportException("msg is null");
         try {
             return tryConverse(message);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             throw new TransportException(e);
         }
     }
 
     private String tryConverse(String message) throws Exception {
-         /*out = new PrintWriter(socket.getOutputStream(), true,
-                StandardCharsets.UTF_8);//отдаем*/
         if (message != null)
             out.println(messagingProtocol.constructMessage(message));
         return "sent!";
     }
-    private void readMessages(){
+
+    private void readMessages() {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -91,19 +84,24 @@ public class PersistSocketTransport implements Transport {
                 try {
                     in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
                             StandardCharsets.UTF_8));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
                 String line;
-                    try {
-                        while (!socket.isClosed()){
-                            line=in.readLine();
-                            System.out.println(line);
-                            }
-                        }
-                     catch (Exception e) {
-                        //e.printStackTrace();
+                try {
+                    while (!socket.isClosed()) {
+                        line = in.readLine();
+                        if (!line.equals("null"))
+                            System.out.println(line + " lol");
                     }
+                } catch (Exception e) {
+                    try {
+                        tryConnectAgain();
+                    } catch (Exception exception) {
+                        exception.printStackTrace();
+                    }
+
+                }
             }
         });
         thread.start();
@@ -113,14 +111,18 @@ public class PersistSocketTransport implements Transport {
     public void disconnect() {
         try {
             tryDisconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             throw new TransportException(e);
         }
     }
 
     private void tryDisconnect() throws Exception {
         closeSocketIfRequired();
+    }
+    private void tryConnectAgain() throws Exception {
+        socket.close();
+        /*Thread.sleep(900);
+        tryConnect();*/
     }
 
 }
