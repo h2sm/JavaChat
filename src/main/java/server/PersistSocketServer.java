@@ -77,11 +77,9 @@ public class PersistSocketServer implements Runnable {
                     catch (Exception e){
                         socket.close();
                         throw new SocketException("Server Socket Timeout. No Messages were received.");
-                        //isTimeout=true;
-                        //e.printStackTrace();
-                        //log("socket timeout");
                     }
-                    if (chInt == -1) throw new IOException("Socket has been closed by a client outage. Reconnect.");
+                    if (chInt == -1) throw new IOException("Socket has been closed by a client outage." +
+                            "Please reconnect.");
                     ch = (char) chInt;
                     baos.write(ch);
                 }
