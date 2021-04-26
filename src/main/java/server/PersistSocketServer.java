@@ -3,6 +3,7 @@ package server;
 import server.settings.*;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -20,15 +21,24 @@ import static util.Logs.log;
 public class PersistSocketServer implements Runnable {
     private static ArrayList<EchoProtocol> clients = new ArrayList<>();
     private static ExecutorService pool = Executors.newCachedThreadPool();
+    private String host;
+    private int port;
+    private int timeout;
+
+    public PersistSocketServer(String host, int port, int timeout) {
+        this.host = host;
+        this.port = port;
+        this.timeout=timeout;
+    }
 
     @Override
     public void run() {
         try (var serverSocket = new ServerSocket()) {
-            serverSocket.bind(Settings.ADDRESS);
+            serverSocket.bind(new InetSocketAddress(host, port));
             while (true) {
                 var clientSocket = serverSocket.accept();
                 log("connected " + clientSocket);
-                clientSocket.setSoTimeout(5*1000);
+                clientSocket.setSoTimeout(timeout*1000);
                 var echoProtocol = new EchoProtocol(clients, clientSocket);
                 clients.add(echoProtocol);
                 pool.submit(echoProtocol);
