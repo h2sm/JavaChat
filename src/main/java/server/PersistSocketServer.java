@@ -1,7 +1,5 @@
 package server;
 
-import server.settings.*;
-
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -13,17 +11,15 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static util.Logs.log;
 
 public class PersistSocketServer implements Runnable {
     private static ArrayList<EchoProtocol> clients = new ArrayList<>();
-    private static ExecutorService pool = Executors.newCachedThreadPool();
-    private String host;
-    private int port;
-    private int timeout;
+    private static final ExecutorService pool = Executors.newCachedThreadPool();
+    private final String host;
+    private final int port;
+    private final int timeout;
 
     public PersistSocketServer(String host, int port, int timeout) {
         this.host = host;
@@ -56,8 +52,8 @@ public class PersistSocketServer implements Runnable {
 
         protected static ArrayList<EchoProtocol> clients;
         private final Socket socket;
-        private BufferedInputStream in;
-        private PrintWriter out;
+        private final BufferedInputStream in;
+        private final PrintWriter out;
 
         public EchoProtocol(ArrayList<EchoProtocol> echoclients, Socket socket) throws Exception {
             this.socket = socket;
@@ -116,22 +112,6 @@ public class PersistSocketServer implements Runnable {
             for (EchoProtocol client : clients) {
                 client.out.println(formatter.format(date) + " " + msg);
             }
-        }
-
-        private void testTimer() {
-            ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
-            scheduledExecutorService.scheduleAtFixedRate(() -> {
-                try {
-                    runTask();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }, 0, 3, TimeUnit.SECONDS);
-        }
-
-        private void runTask() {
-            String unit = "T_TEST" + RS;
-            sendMessageToAll(unit);
         }
     }
 }
