@@ -4,6 +4,7 @@ import server.settings.Settings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -13,10 +14,19 @@ import java.nio.channels.SocketChannel;
 import static util.Logs.log;
 
 public class SessionSelectorServer implements Runnable {
+    private final String host;
+    private final int port;
+    private final int timeout;
+    public SessionSelectorServer(String host, int port, int timeout) {
+        this.host = host;
+        this.port = port;
+        this.timeout=timeout;
+    }
+
     @Override
     public void run() {
         try (var serverChannel = ServerSocketChannel.open(); var selector = Selector.open()) {
-            serverChannel.bind(Settings.ADDRESS);
+            serverChannel.bind(new InetSocketAddress(host, port));
             serverChannel.configureBlocking(false);
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
             while (true) {

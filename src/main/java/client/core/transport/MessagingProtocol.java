@@ -1,6 +1,5 @@
 package client.core.transport;
 
-import java.nio.charset.Charset;
 
 public class MessagingProtocol {
     private static final char GS = 0x1D;

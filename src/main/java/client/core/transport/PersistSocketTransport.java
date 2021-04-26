@@ -5,6 +5,7 @@ import client.core.exception.*;
 import client.core.settings.Settings;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
@@ -17,6 +18,13 @@ public class PersistSocketTransport implements Transport {
     private final Scanner scanner = new Scanner(System.in);
     private PrintWriter out;
     private MessagingProtocol messagingProtocol;
+    private final String host;
+    private final int port, timeout;
+    public PersistSocketTransport(String host, int port, int timeout){
+        this.host = host;
+        this.port = port;
+        this.timeout = timeout;
+    }
 
     @Override
     public void connect() {
@@ -31,8 +39,8 @@ public class PersistSocketTransport implements Transport {
         var name = askForName();
         messagingProtocol = new MessagingProtocol(name);
         socket = new Socket();
-        socket.connect(Settings.ADDRESS);
-        socket.setSoTimeout(3*1000);
+        socket.connect(new InetSocketAddress(host, port));
+        socket.setSoTimeout(timeout*1000);
         registerOnServer();
         readMessages();
     }

@@ -1,13 +1,13 @@
-package server.settings;
+package loader;
 
 import java.io.File;
 import java.io.FileReader;
 import java.util.Properties;
 
-public class ServerConfiguration {
+public class Configuration {
     private File file;
     private Properties properties;
-    public ServerConfiguration() throws Exception {
+    public Configuration() throws Exception {
         file = new File("src\\main\\java\\loader\\config.properties");
         properties = new Properties();
         properties.load(new FileReader(file));
@@ -21,8 +21,6 @@ public class ServerConfiguration {
     public String getType(){
         return properties.getProperty("typeOfConnection");
     }
-    public int getTimer(){
-        return Integer.parseInt(properties.getProperty("timeout"));
-    }
+    public int getTimer(){ return Integer.parseInt(properties.getProperty("timeout"));}
 
 }
