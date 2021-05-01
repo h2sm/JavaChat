@@ -3,15 +3,23 @@ package client.core.transport;
 import client.core.Transport;
 import client.core.exception.TransportException;
 import client.core.settings.Settings;
-
+import util.Logs.*;
 import java.io.ByteArrayOutputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Scanner;
+
+import static util.Logs.log;
 
 public class SessionChannelTransport implements Transport {
     private final String host;
     private final int port, timeout;
+    private static final char GS = 0x1D;
+    private static final char RS = 0x1E;
+    private String clientName;
+    private final Scanner scanner = new Scanner(System.in);
+    private MessagingProtocol messagingProtocol;
 
     public SessionChannelTransport(String host, int port, int timeout) {
         this.host = host;
@@ -21,7 +29,9 @@ public class SessionChannelTransport implements Transport {
 
     @Override
     public void connect() {
-
+        log("Type your name");
+        clientName = scanner.next();
+        messagingProtocol = new MessagingProtocol(clientName);
     }
 
     @Override
@@ -36,7 +46,7 @@ public class SessionChannelTransport implements Transport {
 
     private String tryConverse(String message) throws Exception {
         try (var channel = SocketChannel.open(new InetSocketAddress(host, port))) {
-            var buffer = ByteBuffer.wrap((message + "\n").getBytes());
+            var buffer = ByteBuffer.wrap((messagingProtocol.messageSelector(message)).getBytes());
             channel.write(buffer);
 
             buffer = ByteBuffer.allocate(8);

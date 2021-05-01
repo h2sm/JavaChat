@@ -36,15 +36,15 @@ public class SessionSelectorServer implements Runnable {
                     var key = iterator.next();
 
                     if (key.isValid() && key.isAcceptable()) {
-                        log("acceptable " + key);
+                        //log("acceptable " + key);
                         performAccept(key);
                     }
                     if (key.isValid() && key.isReadable()) {
-                        log("readable " + key);
+                        //log("readable " + key);
                         ((EchoProtocol) key.attachment()).read();
                     }
                     if (key.isValid() && key.isWritable()) {
-                        log("writable " + key);
+                        //log("writable " + key);
                         ((EchoProtocol) key.attachment()).write();
                     }
                     iterator.remove();
@@ -64,6 +64,7 @@ public class SessionSelectorServer implements Runnable {
                 clientChannel = serverChannel.accept();
                 if (clientChannel != null) {
                     clientChannel.configureBlocking(false);
+                    //clientChannel.socket().setSoTimeout();
                     var clientKey = clientChannel.register(serverKey.selector(), SelectionKey.OP_READ);
                     clientKey.attach(new EchoProtocol(clientKey));
                     log("accepted " + clientChannel);
@@ -82,6 +83,8 @@ public class SessionSelectorServer implements Runnable {
         private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         private boolean isMessageReceived = false;
         private ByteBuffer writeBuffer;
+        private static final char GS = 0x1D;
+        private static final char RS = 0x1E;
 
         public EchoProtocol(SelectionKey key) {
             this.key = key;
@@ -106,7 +109,7 @@ public class SessionSelectorServer implements Runnable {
                 readBuffer.flip();
                 while (readBuffer.hasRemaining() && !isMessageReceived) {
                     var b = readBuffer.get();
-                    if (b == '\n') {
+                    if (b == RS) {
                         isMessageReceived = true;
                     }
                     else {
@@ -118,11 +121,17 @@ public class SessionSelectorServer implements Runnable {
 
             if (isMessageReceived) {
                 var message = new String(baos.toByteArray());
-                log("received from " + channel + ": " + message);
-                writeBuffer = ByteBuffer.wrap(("echo: " + message + "\n").getBytes());
+                //log("received from " + channel + ": " + message);
+                var parsedMSG = parseMessage(message);
+                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
                 key.interestOpsAnd(~SelectionKey.OP_READ);
                 key.interestOpsOr(SelectionKey.OP_WRITE);
             }
+        }
+        private String parseMessage(String msg){
+            var buff = msg.split(String.valueOf(GS)); //Arrays.toString(<>)
+            if (buff[0].equals("T_REGISTER")) return "New connected user " + buff[1];
+            return buff[1] + " says: " + buff[2];
         }
 
         public void write() {
