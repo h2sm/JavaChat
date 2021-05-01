@@ -8,7 +8,7 @@ public class Configuration {
     private File file;
     private Properties properties;
     public Configuration() throws Exception {
-        file = new File("src\\main\\java\\loader\\config.properties");
+        file = new File("D:\\Java_laba\\ServerAndClientsChat\\src\\main\\java\\loader\\config.properties");
         properties = new Properties();
         properties.load(new FileReader(file));
     }

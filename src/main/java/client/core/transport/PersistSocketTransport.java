@@ -100,7 +100,7 @@ public class PersistSocketTransport implements Transport {
                     while (!socket.isClosed()) {
                         line = in.readLine();
                         if (!line.equals("null"))
-                            System.out.println(line + " lol");
+                            System.out.println(line );
                     }
                 } catch (Exception e) {
                     try {

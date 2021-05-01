@@ -69,4 +69,7 @@ public class SessionChannelTransport implements Transport {
     public void disconnect() {
 
     }
+    private void receiveMSG(){
+
+    }
 }

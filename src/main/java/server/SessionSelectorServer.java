@@ -1,15 +1,17 @@
 package server;
 
-import server.settings.Settings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Set;
 
 import static util.Logs.log;
 
@@ -17,6 +19,7 @@ public class SessionSelectorServer implements Runnable {
     private final String host;
     private final int port;
     private final int timeout;
+    private Set<SelectionKey> set;
     public SessionSelectorServer(String host, int port, int timeout) {
         this.host = host;
         this.port = port;
@@ -31,6 +34,7 @@ public class SessionSelectorServer implements Runnable {
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
             while (true) {
                 selector.select();
+                set = selector.selectedKeys();
                 var iterator = selector.selectedKeys().iterator();
                 while (iterator.hasNext()) {
                     var key = iterator.next();
@@ -66,7 +70,7 @@ public class SessionSelectorServer implements Runnable {
                     clientChannel.configureBlocking(false);
                     //clientChannel.socket().setSoTimeout();
                     var clientKey = clientChannel.register(serverKey.selector(), SelectionKey.OP_READ);
-                    clientKey.attach(new EchoProtocol(clientKey));
+                    clientKey.attach(new EchoProtocol(clientKey,set));
                     log("accepted " + clientChannel);
                 }
             }
@@ -78,7 +82,10 @@ public class SessionSelectorServer implements Runnable {
     }
 
     private static class EchoProtocol {
+        Date date = new Date();
+        SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
         private final SelectionKey key;
+        private Set<SelectionKey> set;
         private final ByteBuffer readBuffer = ByteBuffer.allocate(8);
         private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         private boolean isMessageReceived = false;
@@ -86,8 +93,9 @@ public class SessionSelectorServer implements Runnable {
         private static final char GS = 0x1D;
         private static final char RS = 0x1E;
 
-        public EchoProtocol(SelectionKey key) {
+        public EchoProtocol(SelectionKey key, Set<SelectionKey> set) {
             this.key = key;
+            this.set = set;
         }
 
         public void read() {
@@ -122,8 +130,8 @@ public class SessionSelectorServer implements Runnable {
             if (isMessageReceived) {
                 var message = new String(baos.toByteArray());
                 //log("received from " + channel + ": " + message);
-                var parsedMSG = parseMessage(message);
-                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
+                var parsedMSG = parseMessage( message);
+                writeBuffer = ByteBuffer.wrap((formatter.format(date) + " " + parsedMSG).getBytes()); //+RS
                 key.interestOpsAnd(~SelectionKey.OP_READ);
                 key.interestOpsOr(SelectionKey.OP_WRITE);
             }
@@ -145,7 +153,21 @@ public class SessionSelectorServer implements Runnable {
         }
 
         private void tryWrite() throws Exception {
-            var channel = (SocketChannel) key.channel();
+            var iter = set.iterator();
+            while (iter.hasNext()){
+                var key = iter.next();
+                var ch = (SocketChannel) key.channel();
+                int writeCount;
+                do {
+                    writeCount = ch.write(writeBuffer);
+                }
+                while (writeCount > 0);
+
+                if (!writeBuffer.hasRemaining()) {
+                    closeConnection();
+                }
+            }
+            /*var channel = (SocketChannel) key.channel();
             int writeCount;
             do {
                 writeCount = channel.write(writeBuffer);
@@ -154,7 +176,7 @@ public class SessionSelectorServer implements Runnable {
 
             if (!writeBuffer.hasRemaining()) {
                 closeConnection();
-            }
+            }*/
         }
 
         private void closeConnection() {

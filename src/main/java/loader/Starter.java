@@ -26,7 +26,6 @@ public class Starter {
             }
             else if (type.equals("selector")){
                 new Thread(new SessionSelectorServer(host,port,timeout)).start();
-                //new Thread(new ClientStart(host,port,type,timeout)).start();
             }
             else {
                 throw new IOException("Explicit server configuration: " + type);
