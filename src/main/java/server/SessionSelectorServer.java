@@ -40,15 +40,15 @@ public class SessionSelectorServer implements Runnable {
                     var key = iterator.next();
 
                     if (key.isValid() && key.isAcceptable()) {
-                        log("acceptable " + key);
+                        //log("acceptable " + key);
                         performAccept(key);
                     }
                     if (key.isValid() && key.isReadable()) {
-                        log("readable " + key);
+                        //log("readable " + key);
                         ((EchoProtocol) key.attachment()).read();
                     }
                     if (key.isValid() && key.isWritable()) {
-                        log("writable " + key);
+                        //log("writable " + key);
                         ((EchoProtocol) key.attachment()).write();
                     }
                     iterator.remove();
@@ -153,7 +153,7 @@ public class SessionSelectorServer implements Runnable {
 
         private void tryWrite() throws Exception {
             var channel = (SocketChannel) key.channel();
-            System.out.println(key.isWritable() + " is writable");
+            //System.out.println(key.isWritable() + " is writable");
             int writeCount;
             do {
                 writeCount = channel.write(writeBuffer);

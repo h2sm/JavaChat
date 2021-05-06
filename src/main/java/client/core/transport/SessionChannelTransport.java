@@ -85,15 +85,12 @@ public class SessionChannelTransport implements Transport {
         var buffer = ByteBuffer.wrap((messagingProtocol.messageSelector(message)).getBytes());
         client.write(buffer);
         buffer = ByteBuffer.allocate(100);
-        var done = false;
         var baos = new ByteArrayOutputStream();
-        //while (!done) {
-            buffer.clear();
-            client.read(buffer);
-            //done = client.read(buffer) < 0;
-            buffer.flip();
-            while (buffer.hasRemaining()) {
-                baos.write(buffer.get());
+        buffer.clear();
+        client.read(buffer);
+        buffer.flip();
+        while (buffer.hasRemaining()) {
+            baos.write(buffer.get());
             }
         //}
         return new String(baos.toByteArray());
