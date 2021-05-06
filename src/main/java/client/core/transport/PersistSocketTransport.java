@@ -2,7 +2,6 @@ package client.core.transport;
 
 import client.core.Transport;
 import client.core.exception.*;
-import client.core.settings.Settings;
 
 import java.io.*;
 import java.net.InetSocketAddress;
