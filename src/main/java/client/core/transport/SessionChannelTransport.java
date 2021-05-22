@@ -2,33 +2,28 @@ package client.core.transport;
 
 import client.core.Transport;
 import client.core.exception.TransportException;
+
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
-import java.util.Set;
 
 import static util.Logs.log;
 
 public class SessionChannelTransport implements Transport {
-    private final String host;
-    private final int port, timeout;
-    private static final char GS = 0x1D;
-    private static final char RS = 0x1E;
+    private final int timeout;
     private String clientName;
-    private final Scanner scanner = new Scanner(System.in);
+    private Scanner scanner = new Scanner(System.in);
     private MessagingProtocol messagingProtocol;
     private SocketChannel client;
-    private ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    private InetSocketAddress address;
 
     public SessionChannelTransport(String host, int port, int timeout) {
-        this.host = host;
-        this.port = port;
         this.timeout = timeout;
+        this.address = new InetSocketAddress(host, port);
     }
 
     @Override
@@ -37,8 +32,9 @@ public class SessionChannelTransport implements Transport {
         clientName = scanner.next();
         messagingProtocol = new MessagingProtocol(clientName);
         try {
-            client = SocketChannel.open(new InetSocketAddress(host, port));
-            startReceiver();
+            client = SocketChannel.open(address);
+            Thread serverInputThread = new Thread(this::receiveServerInput);
+            serverInputThread.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -54,43 +50,31 @@ public class SessionChannelTransport implements Transport {
     }
 
     private String tryConverse(String message) throws Exception {
-        var buffer = ByteBuffer.wrap((messagingProtocol.messageSelector(message)).getBytes());
-        client.write(buffer);
-//        buffer = ByteBuffer.allocate(100);
-//        var baos = new ByteArrayOutputStream();
-//        buffer.clear();
-//        client.read(buffer);
-//        buffer.flip();
-//        while (buffer.hasRemaining()) {
-//            baos.write(buffer.get());
-//        }
+        var sendMSG = messagingProtocol.messageSelector(message);
+        var buffer = ByteBuffer.wrap((sendMSG));
+        try {
+            client.write(buffer);
+            buffer.flip();
+        }
+        catch (Exception e){
+            e.getCause();
+        }
         return "sent";
-        //return new String(baos.toByteArray());
     }
 
-    private void startReceiver(){
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true){
-                    ByteBuffer buffer = ByteBuffer.allocate(100);
-                    var baos = new ByteArrayOutputStream();
-                    try {
-                        client.read(buffer);
-                        while (buffer.hasRemaining()) {
-                            baos.write(buffer.get());
-                        }
-                        log(baos.toString(StandardCharsets.UTF_8));
-                    }
-                    catch (Exception e){
-                        e.printStackTrace();
-                    }
-
+    private void receiveServerInput() {
+        while (client.isConnected()) {
+            ByteBuffer buf = ByteBuffer.allocate(1024);
+            try {
+                while (client.read(buf) > 0) {
+                    System.out.println(new String(buf.array()));
+                    buf.clear();
                 }
+            } catch (IOException e) {
+                System.out.println(e.getMessage());
+                e.printStackTrace();
             }
-        });
-        thread.start();
-
+        }
     }
 
 
@@ -98,8 +82,7 @@ public class SessionChannelTransport implements Transport {
     public void disconnect() {
         try {
             client.close();
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
