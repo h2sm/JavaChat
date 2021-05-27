@@ -4,6 +4,7 @@ package server;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.nio.ByteBuffer;
@@ -17,15 +18,9 @@ import static util.Logs.log;
 public class SessionSelectorServer implements Runnable {
     private final int timeout;
     private final InetSocketAddress address;
-    private ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-    private ByteBuffer writeBuffer;
-    private boolean isMessageReceived = false;
-    private static final char GS = 0x1D;
-    private static final char RS = 0x1E;
-    private Selector selector;
-    private ServerSocketChannel serverChannel;
-    private List<SocketChannel> clients = new ArrayList<>();
-
+    private static List<SelectionKey> keysList = new ArrayList<>();
+    private static List<ByteBuffer> byteBufferList = new ArrayList<>();
+    private static int clientCounter = 0;
 
     public SessionSelectorServer(String host, int port, int timeout) {
         this.address = new InetSocketAddress(host, port);
@@ -35,8 +30,8 @@ public class SessionSelectorServer implements Runnable {
     @Override
     public void run() {
         try {
-            serverChannel = ServerSocketChannel.open();
-            selector = Selector.open();
+            var serverChannel = ServerSocketChannel.open();
+            var selector = Selector.open();
             serverChannel.bind(address);
             serverChannel.configureBlocking(false);
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
@@ -46,23 +41,17 @@ public class SessionSelectorServer implements Runnable {
                 Iterator<SelectionKey> itr = selectedKeys.iterator();
                 while (itr.hasNext()) {
                     var key = (SelectionKey) itr.next();
-
                     if (key.isValid() && key.isAcceptable()) {
-                        var clientSocket = serverChannel.accept();
-                        if (clientSocket != null) {
-                            clientSocket.configureBlocking(false);
-                            clientSocket.register(selector, SelectionKey.OP_READ);
-                            clients.add(clientSocket);
-                            log("accepted " + clientSocket);
-                        }
+                        log("acceptable " + key);
+                        accept(key);
                     }
                     if (key.isValid() && key.isReadable()) {
-                        //log("readable " + key);
-                        read(key);
+                        log("readable " + key);
+                        ((SelectorProtocol) key.attachment()).read();
                     }
                     if (key.isValid() && key.isWritable()) {
-                        //log("writable " + key);
-                        write(key);
+                        log("writable " + key);
+                        ((SelectorProtocol) key.attachment()).write();
                     }
                     itr.remove();
                 }
@@ -72,97 +61,122 @@ public class SessionSelectorServer implements Runnable {
         }
     }
 
-    public void read(SelectionKey key) {
+    private void accept(SelectionKey key) {
         try {
-            tryRead(key);
-        } catch (Exception e) {
-            e.printStackTrace();
-            closeConnection(key);
-        }
-    }
+            var serverChannel = (ServerSocketChannel) key.channel();
+            var clientChannel = serverChannel.accept();
+            if (clientChannel != null) {
+                clientChannel.configureBlocking(false);
+                var clientKey = clientChannel.register(key.selector(), SelectionKey.OP_READ);
+                clientKey.attach(new SelectorProtocol(clientKey));
+                keysList.add(clientKey);
+                ++clientCounter;
 
-    private void tryRead(SelectionKey key) throws Exception {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        var channel = (SocketChannel) key.channel();
-        int readCount;
-        do {
-            readBuffer.clear();
-            readCount = channel.read(readBuffer);
-            readBuffer.flip();
-            while (readBuffer.hasRemaining() && !isMessageReceived) {
-                var b = readBuffer.get();
-                if (b == RS) {
-                    isMessageReceived = true;
-                } else {
-                    baos.write(b);
-                }
+                //log("accepted " + clientChannel);
             }
-        }
-        while (readCount > 0 && !isMessageReceived);
-
-        if (isMessageReceived) {
-            var message = new String(baos.toByteArray());
-            System.out.println(message + " message");
-            var parsedMSG = Parser.parse(message);
-            //System.out.println(parsedMSG + " parsed");
-            writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
-            //System.out.println(new String(writeBuffer.array()) + " kek?");
-            key.interestOps(SelectionKey.OP_WRITE);
-            isMessageReceived = false;
-        }
-    }
-
-    public void write(SelectionKey key) {
-        try {
-            tryWrite(key);
-        } catch (Exception e) {
-            e.printStackTrace();
-            closeConnection(key);
-        }
-    }
-
-    private void tryWrite(SelectionKey key) throws Exception {
-        try {
-            //writeBuffer.clear();
-            for (SocketChannel channel : clients) {
-                int writeCount;
-                do {
-                    writeCount = channel.write(writeBuffer);
-                }
-                while (writeCount > 0);
-                //channel.write(writeBuffer);
-                key.interestOps(SelectionKey.OP_READ);
-            }
-            //writeBuffer.flip();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void closeConnection(SelectionKey key) {
-        key.cancel();
-        if (key.channel() != null) {
+    private static class SelectorProtocol {
+        private Parser parser;
+        private final SelectionKey key;
+        private static ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+        private static ByteBuffer writeBuffer;
+        private boolean isMessageReceived = false;
+        private static final char RS = 0x1E;
+        private static int innerCounter = 0;
+        //private static List<ByteBuffer> buffers = new ArrayList<>();
+
+        public SelectorProtocol(SelectionKey clientKey) {
+            this.key = clientKey;
+            this.parser = new Parser();
+        }
+
+        public void read() {
             try {
-                key.channel().close();
-            } catch (IOException e) {
+                readMethod();
+            } catch (Exception e) {
                 e.printStackTrace();
+                closeConnection();
             }
         }
-    }
 
-    private static class Parser {
-        private static final char GS = 0x1D;
-        private static final SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
-
-        public static String parse(String pack) {
-            var date = new Date();
-            var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
-            var type = buff[0];
-            if (type.equals("T_REGISTER"))
-                return "(" + formatter.format(date) + ")" + " New connected user " + buff[1];
-            if (type.equals("T_MESSAGE"))
-                return "(" + formatter.format(date) + ") " + buff[1] + " says: " + buff[2];
-            return "Damn an L.";
+        public void write() {
+            try {
+                writeMethod();
+            } catch (Exception e) {
+                e.printStackTrace();
+                //closeConnection();
+            }
         }
+
+        private void readMethod() throws Exception {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            var channel = (SocketChannel) key.channel();
+            int readCount;
+            do {
+                readBuffer.clear();
+                readCount = channel.read(readBuffer);
+                readBuffer.flip();
+                while (readBuffer.hasRemaining() && !isMessageReceived) {
+                    var b = readBuffer.get();
+                    if (b == RS) {
+                        isMessageReceived = true;
+                    } else {
+                        baos.write(b);
+                    }
+                }
+            }
+            while (readCount > 0 && !isMessageReceived);
+
+            if (isMessageReceived) {
+                var message = new String(baos.toByteArray());
+                var parsedMSG = parser.parse(message);
+                //System.out.println(parsedMSG + " parsedmsg");
+                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
+                for (SelectionKey sk : keysList) {
+                    if (!key.equals(sk))
+                        sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+                }
+                key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
+                isMessageReceived = false;
+            }
+        }
+
+        private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
+            var channel = (SocketChannel) key.channel();
+            int writeCount;
+            do {
+                writeCount = channel.write(writeBuffer);
+                //channel.write(writeBuffer);
+            }
+            while (writeCount > 0);
+            key.interestOps(SelectionKey.OP_READ);
+            writeBuffer.flip();
+        }
+
+        private void closeConnection() {
+            key.cancel();
+            if (key.channel() != null) {
+                try {
+                    key.channel().close();
+                    keysList.remove(key);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        private static class MessageStack {
+            public void addMessage() {
+            }
+
+            public void returnStack() {
+            }
+        }
+
     }
+
 }

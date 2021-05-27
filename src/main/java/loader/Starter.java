@@ -15,8 +15,10 @@ public class Starter {
         String host = config.getHostname();
         String type = config.getType();
         int timeout = config.getTimer();
+
+        new Thread(new ClientStart(host,port,type,timeout)).start();
+
         try {
-            new Thread(new ClientStart(host,port,type,timeout)).start();
             if (type.equals("socket")){
                 new Thread(new PersistSocketServer(host,port,timeout)).start();
             }

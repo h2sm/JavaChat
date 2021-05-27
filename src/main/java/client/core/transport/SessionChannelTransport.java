@@ -33,7 +33,7 @@ public class SessionChannelTransport implements Transport {
         messagingProtocol = new MessagingProtocol(clientName);
         try {
             client = SocketChannel.open(address);
-            Thread serverInputThread = new Thread(this::receiveServerInput);
+            Thread serverInputThread = new Thread(this::receiveServer);
             serverInputThread.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -54,7 +54,7 @@ public class SessionChannelTransport implements Transport {
         var buffer = ByteBuffer.wrap((sendMSG));
         try {
             client.write(buffer);
-            buffer.flip();
+            //buffer.flip();
         }
         catch (Exception e){
             e.getCause();
@@ -62,7 +62,7 @@ public class SessionChannelTransport implements Transport {
         return "sent";
     }
 
-    private void receiveServerInput() {
+    private void receiveServer() {
         while (client.isConnected()) {
             ByteBuffer buf = ByteBuffer.allocate(1024);
             try {
@@ -71,7 +71,7 @@ public class SessionChannelTransport implements Transport {
                     buf.clear();
                 }
             } catch (IOException e) {
-                System.out.println(e.getMessage());
+                //System.out.println(e.getMessage());
                 e.printStackTrace();
             }
         }

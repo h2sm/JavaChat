@@ -48,12 +48,14 @@ public class PersistSocketServer implements Runnable {
         private final Socket socket;
         private final BufferedInputStream in;
         private final PrintWriter out;
+        private Parser parser;
 
         public EchoProtocol(ArrayList<EchoProtocol> echoclients, Socket socket) throws Exception {
             this.socket = socket;
             clients = echoclients;
             in = new BufferedInputStream(socket.getInputStream());
             out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
+            this.parser = new Parser();
         }
 
         @Override
@@ -88,7 +90,7 @@ public class PersistSocketServer implements Runnable {
         private void tryRun() throws Exception {
             while (true) {
                 var receivedString = readInputStream();
-                var parsedMessage = Parser.parse(receivedString);
+                var parsedMessage = parser.parse(receivedString);
                 sendMessageToAll(parsedMessage);
             }
         }
@@ -101,14 +103,14 @@ public class PersistSocketServer implements Runnable {
         }
     }
 
-    private static class Parser {
-        private static final char GS = 0x1D;
-        private static SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
-        public static String parse(String pack) {
-            var date = new Date();
-            var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
-            if (buff[0].equals("T_REGISTER")) return "(" + formatter.format(date) + ")" + " New connected user " + buff[1];
-            return "(" + formatter.format(date) + ") " + buff[1] + " says: " + buff[2];
-        }
-    }
+//    private static class Parser {
+//        private static final char GS = 0x1D;
+//        private static SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+//        public static String parse(String pack) {
+//            var date = new Date();
+//            var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
+//            if (buff[0].equals("T_REGISTER")) return "(" + formatter.format(date) + ")" + " New connected user " + buff[1];
+//            return "(" + formatter.format(date) + ") " + buff[1] + " says: " + buff[2];
+//        }
+//    }
 }
