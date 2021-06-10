@@ -83,7 +83,7 @@ public final class PostgresHandler {
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
-        return false;//пососи у рыбы
+        return false;//не
     }
 
 

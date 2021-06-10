@@ -47,6 +47,7 @@ public class SessionSelectorServer implements Runnable {
                     if (key.isValid() && key.isReadable()) {
                         log("readable " + key);
                         ((SelectorProtocol) key.attachment()).read();
+                        ((SelectorProtocol) key.attachment()).process();
                     }
                     if (key.isValid() && key.isWritable()) {
                         log("writable " + key);
@@ -82,6 +83,7 @@ public class SessionSelectorServer implements Runnable {
         private final SelectionKey key;
         private static ByteBuffer readBuffer = ByteBuffer.allocate(1024);
         private static ByteBuffer writeBuffer;
+        private ByteArrayOutputStream baos = new ByteArrayOutputStream();
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
         private long timeout;
@@ -113,7 +115,8 @@ public class SessionSelectorServer implements Runnable {
         }
 
         private void readMethod() throws Exception {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            //ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            if (baos.size() != 0) baos.reset();
             var channel = (SocketChannel) key.channel();
             int readCount = 0;
             do {
@@ -136,19 +139,39 @@ public class SessionSelectorServer implements Runnable {
             }
             while (readCount > 0 && !isMessageReceived);
 
-            if (isMessageReceived) {
-                var message = new String(baos.toByteArray());
-                var parsedMSG = parser.parse(message);
-                if (checkUser(parser.getName(), parser.getPassword())) {
-                    postgresHandler.saveMessage(parser.getName(), parsedMSG);
-                    writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
-                    for (SelectionKey sk : keysList) {
-                        if (!key.equals(sk))
-                            sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
-                    }
-                    key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
-                    isMessageReceived = false;
+//            if (isMessageReceived) {
+//                var message = new String(baos.toByteArray());
+//                var parsedMSG = parser.parse(message);
+//                var type = parser.getType();
+//                if (checkUser(parser.getName(), parser.getPassword())) {
+//                    postgresHandler.saveMessage(parser.getName(), parsedMSG);
+//                    writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
+//                    for (SelectionKey sk : keysList) {
+//                        if (!key.equals(sk))
+//                            sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+//                    }
+//                    key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
+//                    isMessageReceived = false;
+//                }
+//            }
+        }
+
+        private void process() {
+            var message = new String(baos.toByteArray());
+            var parsedMSG = parser.parse(message);
+            var type = parser.getType();
+            for (SelectionKey sk : keysList) {
+                if (!key.equals(sk))
+                    sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+            }
+            if (checkUser(parser.getName(), parser.getPassword())) {
+                if (type.equals("T_REGISTER")) {
+                    sendLastMSG();
                 }
+                postgresHandler.saveMessage(parser.getName(), parsedMSG);
+                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
+                key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
+                isMessageReceived = false;
             }
         }
 
@@ -160,7 +183,7 @@ public class SessionSelectorServer implements Runnable {
                     closeConnection();//если нет клиента, то прощаемся с ним
                 }
             }
-            return isAuthorized;
+            return isAuthorized;//такие дела
         }
 
         private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
@@ -172,6 +195,20 @@ public class SessionSelectorServer implements Runnable {
             while (writeCount > 0);
             key.interestOps(SelectionKey.OP_READ);
             writeBuffer.flip();
+        }
+
+        private void sendLastMSG() {
+            var messages = postgresHandler.returnLast20Messages();
+            var channel = (SocketChannel) key.channel();
+            for (String msg : messages) {
+                var test = msg+"\n";
+                var buff = ByteBuffer.wrap(test.getBytes());
+                try {
+                    channel.write(buff);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
         private void closeConnection() {

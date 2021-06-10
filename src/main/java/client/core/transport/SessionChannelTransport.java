@@ -76,7 +76,7 @@ public class SessionChannelTransport implements Transport {
 
     private void receiveServer() {
         while (client.isConnected()) {
-            ByteBuffer buf = ByteBuffer.allocate(1024);
+            ByteBuffer buf = ByteBuffer.allocate(15);
             try {
                 while (client.read(buf) > 0) {
                     System.out.println(new String(buf.array()));

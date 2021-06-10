@@ -9,11 +9,12 @@ public class Parser {
     private String name;
     private String message;
     private String password;
+    private String type;
 
     public String parse(String pack) {
         var date = new Date();
         var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
-        var type = buff[0];//тип сообщения
+        type = buff[0];//тип сообщения
         name = buff[1];
         if (type.equals("T_REGISTER")) {
             password = buff[2];
@@ -42,5 +43,9 @@ public class Parser {
         if (password!=null)
             return password;
         return null;
+    }
+
+    public String getType() {
+        return type;
     }
 }
