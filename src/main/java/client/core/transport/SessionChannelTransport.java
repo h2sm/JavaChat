@@ -35,7 +35,17 @@ public class SessionChannelTransport implements Transport {
             client = SocketChannel.open(address);
             Thread serverInputThread = new Thread(this::receiveServer);
             serverInputThread.start();
+            greeting();
         } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    private void greeting(){
+        byte[] msg = messagingProtocol.registrationSelector().getBytes();
+        try {
+            client.write(ByteBuffer.wrap(msg));
+        }
+        catch (IOException e){
             e.printStackTrace();
         }
     }

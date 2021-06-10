@@ -1,11 +1,12 @@
 package server;
 
 
+import server.postgres.PostgresHandler;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.net.SocketException;
 import java.util.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -19,12 +20,11 @@ public class SessionSelectorServer implements Runnable {
     private final int timeout;
     private final InetSocketAddress address;
     private static List<SelectionKey> keysList = new ArrayList<>();
-    private static List<ByteBuffer> byteBufferList = new ArrayList<>();
-    private static int clientCounter = 0;
+    private PostgresHandler handler = PostgresHandler.getInstance("docker", "docker");
 
     public SessionSelectorServer(String host, int port, int timeout) {
         this.address = new InetSocketAddress(host, port);
-        this.timeout = timeout;
+        this.timeout = timeout*1000;
     }
 
     @Override
@@ -36,7 +36,7 @@ public class SessionSelectorServer implements Runnable {
             serverChannel.configureBlocking(false);
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
             while (true) {
-                selector.select();
+                selector.select(timeout);
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();
                 Iterator<SelectionKey> itr = selectedKeys.iterator();
                 while (itr.hasNext()) {
@@ -68,9 +68,8 @@ public class SessionSelectorServer implements Runnable {
             if (clientChannel != null) {
                 clientChannel.configureBlocking(false);
                 var clientKey = clientChannel.register(key.selector(), SelectionKey.OP_READ);
-                clientKey.attach(new SelectorProtocol(clientKey));
+                clientKey.attach(new SelectorProtocol(clientKey, timeout));
                 keysList.add(clientKey);
-                ++clientCounter;
 
                 //log("accepted " + clientChannel);
             }
@@ -86,12 +85,18 @@ public class SessionSelectorServer implements Runnable {
         private static ByteBuffer writeBuffer;
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
-        private static int innerCounter = 0;
-        //private static List<ByteBuffer> buffers = new ArrayList<>();
+        private long receivedTime = 0L;
+        private long timeout;
+        private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
+        //private Thread timerTh = new Thread(this::timer);
+        //private boolean firstMSGReceived = false;
 
-        public SelectorProtocol(SelectionKey clientKey) {
+
+        public SelectorProtocol(SelectionKey clientKey, int timeout) {
             this.key = clientKey;
             this.parser = new Parser();
+            this.timeout = timeout * 1000;
+            //timerTh.start();
         }
 
         public void read() {
@@ -115,10 +120,16 @@ public class SessionSelectorServer implements Runnable {
         private void readMethod() throws Exception {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             var channel = (SocketChannel) key.channel();
-            int readCount;
+            int readCount = 0;
             do {
                 readBuffer.clear();
-                readCount = channel.read(readBuffer);
+                try {
+                    readCount = channel.read(readBuffer);
+                }
+                catch (SocketException e){
+                    log("Socket was closed");
+                    closeConnection();
+                }
                 readBuffer.flip();
                 while (readBuffer.hasRemaining() && !isMessageReceived) {
                     var b = readBuffer.get();
@@ -132,9 +143,10 @@ public class SessionSelectorServer implements Runnable {
             while (readCount > 0 && !isMessageReceived);
 
             if (isMessageReceived) {
+                receivedTime = System.currentTimeMillis();
+                //firstMSGReceived = true;
                 var message = new String(baos.toByteArray());
                 var parsedMSG = parser.parse(message);
-                //System.out.println(parsedMSG + " parsedmsg");
                 writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
                 for (SelectionKey sk : keysList) {
                     if (!key.equals(sk))
@@ -150,7 +162,6 @@ public class SessionSelectorServer implements Runnable {
             int writeCount;
             do {
                 writeCount = channel.write(writeBuffer);
-                //channel.write(writeBuffer);
             }
             while (writeCount > 0);
             key.interestOps(SelectionKey.OP_READ);
@@ -163,20 +174,27 @@ public class SessionSelectorServer implements Runnable {
                 try {
                     key.channel().close();
                     keysList.remove(key);
+                    log("closed");
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         }
 
-        private static class MessageStack {
-            public void addMessage() {
-            }
-
-            public void returnStack() {
-            }
-        }
-
+//        private void timer() {
+//            while (true) {
+//                if (firstMSGReceived){
+//                    //System.out.println(firstMSGReceived);
+//                    long timeNow = System.currentTimeMillis();
+//                    log(timeNow - receivedTime + " ms");
+//                    if (timeNow - receivedTime > timeout) {
+//                        closeConnection();
+//                        log("Timeout");
+//                        return;
+//                    }
+//                }
+//            }
+//        }
     }
 
 }
