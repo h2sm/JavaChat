@@ -21,6 +21,7 @@ public class SessionChannelTransport implements Transport {
     private MessagingProtocol messagingProtocol;
     private SocketChannel client;
     private InetSocketAddress address;
+    private ByteBuffer buf;
 
     public SessionChannelTransport(String host, int port, int timeout) {
         this.timeout = timeout;
@@ -76,12 +77,18 @@ public class SessionChannelTransport implements Transport {
 
     private void receiveServer() {
         while (client.isConnected()) {
-            ByteBuffer buf = ByteBuffer.allocate(15);
             try {
-                while (client.read(buf) > 0) {
-                    System.out.println(new String(buf.array()));
-                    buf.clear();
-                }
+                buf = ByteBuffer.allocate(1024);
+                buf.clear();
+                client.read(buf);
+                System.out.println(new String(buf.array()));
+                buf.flip();
+
+//                while (client.read(buf) > 0) {
+//                    System.out.println(new String(buf.array()));
+//                    buf.rewind();
+                    //buf.clear();
+               // }
             } catch (IOException e) {
                 //System.out.println(e.getMessage());
                 e.printStackTrace();
