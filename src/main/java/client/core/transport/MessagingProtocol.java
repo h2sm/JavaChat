@@ -23,8 +23,8 @@ public class MessagingProtocol {
         //return "T_MESSAGE"+ GS + clientName + GS + msg + RS;
     }
     public String constructFinishing(){return "T_FINISH" +GS + clientName + RS;}
-    public String registrationSelector(){
-        return "T_REGISTER" + GS + clientName+RS;
+    public String registrationSelector(String password){
+        return "T_REGISTER" + GS + clientName + GS + password + RS ;
     }
     public byte[] messageSelector(String msg){
         String str = "T_MESSAGE"+ GS + clientName + GS + msg + RS;

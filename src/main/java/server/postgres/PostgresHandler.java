@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public final class PostgresHandler {
     private final String username;
@@ -33,13 +35,13 @@ public final class PostgresHandler {
     public void saveMessage(String name, String message) {
         try {
             var time = LocalTime.now().truncatedTo(ChronoUnit.SECONDS);
-            var date =  LocalDate.now();
+            var date = LocalDate.now();
             byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
             var msg = new String(bytes, StandardCharsets.UTF_8);
             var results = connection
                     .createStatement()
-                    .executeQuery("insert into logchat values ('"+msg+"', '"+ date+ "'," +
-                            "(select userid from oneuser where oneuser.username='"+name+"'), '"+time+"');");
+                    .executeQuery("insert into logchat values ('" + msg + "', '" + date + "'," +
+                            "(select userid from oneuser where oneuser.username='" + name + "'), '" + time + "');");
 
             results.close();
         } catch (SQLException e) {
@@ -47,13 +49,24 @@ public final class PostgresHandler {
         }
     }
 
-    public String returnLast20Messages() {
-        return null;
-
+    public ArrayList<String> returnLast20Messages() {
+        var array = new ArrayList<String>();
+        try {
+            var result = connection
+                    .createStatement()
+                    .executeQuery("select usermsg from logchat limit 20;");
+            while (result.next()){
+                array.add(result.getString("usermsg"));
+            }
+            result.close();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return array;
     }
 
     public boolean authenticate(String uname, String pswrd) {//пароль для EGORIK-а - EGORIK. ну тот же самый то есть
-                                                    //Б - безопасность. веракрипт не спасет если сам дурак :D
+        //Б - безопасность. веракрипт не спасет если сам дурак :D
         try {
             var resultSet = connection
                     .createStatement()

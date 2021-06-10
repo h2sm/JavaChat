@@ -20,11 +20,10 @@ public class SessionSelectorServer implements Runnable {
     private final int timeout;
     private final InetSocketAddress address;
     private static List<SelectionKey> keysList = new ArrayList<>();
-    private PostgresHandler handler = PostgresHandler.getInstance("docker", "docker");
 
     public SessionSelectorServer(String host, int port, int timeout) {
         this.address = new InetSocketAddress(host, port);
-        this.timeout = timeout*1000;
+        this.timeout = timeout * 1000;
     }
 
     @Override
@@ -85,18 +84,14 @@ public class SessionSelectorServer implements Runnable {
         private static ByteBuffer writeBuffer;
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
-        private long receivedTime = 0L;
         private long timeout;
         private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
-        //private Thread timerTh = new Thread(this::timer);
-        //private boolean firstMSGReceived = false;
-
+        private boolean isAuthorized = false;
 
         public SelectorProtocol(SelectionKey clientKey, int timeout) {
             this.key = clientKey;
             this.parser = new Parser();
             this.timeout = timeout * 1000;
-            //timerTh.start();
         }
 
         public void read() {
@@ -125,8 +120,7 @@ public class SessionSelectorServer implements Runnable {
                 readBuffer.clear();
                 try {
                     readCount = channel.read(readBuffer);
-                }
-                catch (SocketException e){
+                } catch (SocketException e) {
                     log("Socket was closed");
                     closeConnection();
                 }
@@ -143,18 +137,30 @@ public class SessionSelectorServer implements Runnable {
             while (readCount > 0 && !isMessageReceived);
 
             if (isMessageReceived) {
-                receivedTime = System.currentTimeMillis();
-                //firstMSGReceived = true;
                 var message = new String(baos.toByteArray());
                 var parsedMSG = parser.parse(message);
-                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
-                for (SelectionKey sk : keysList) {
-                    if (!key.equals(sk))
-                        sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+                if (checkUser(parser.getName(), parser.getPassword())) {
+                    postgresHandler.saveMessage(parser.getName(), parsedMSG);
+                    writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
+                    for (SelectionKey sk : keysList) {
+                        if (!key.equals(sk))
+                            sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+                    }
+                    key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
+                    isMessageReceived = false;
                 }
-                key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
-                isMessageReceived = false;
             }
+        }
+
+        private boolean checkUser(String name, String pass) {
+            if (!isAuthorized) {//если клиент пока не авторизован
+                if (postgresHandler.authenticate(name, pass)) {//мы обращаемся к базе данных
+                    isAuthorized = true;//если клиент найден, то он авторизован
+                } else {
+                    closeConnection();//если нет клиента, то прощаемся с ним
+                }
+            }
+            return isAuthorized;
         }
 
         private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
@@ -180,21 +186,6 @@ public class SessionSelectorServer implements Runnable {
                 }
             }
         }
-
-//        private void timer() {
-//            while (true) {
-//                if (firstMSGReceived){
-//                    //System.out.println(firstMSGReceived);
-//                    long timeNow = System.currentTimeMillis();
-//                    log(timeNow - receivedTime + " ms");
-//                    if (timeNow - receivedTime > timeout) {
-//                        closeConnection();
-//                        log("Timeout");
-//                        return;
-//                    }
-//                }
-//            }
-//        }
     }
 
 }

@@ -16,6 +16,7 @@ import static util.Logs.log;
 public class SessionChannelTransport implements Transport {
     private final int timeout;
     private String clientName;
+    private String password;
     private Scanner scanner = new Scanner(System.in);
     private MessagingProtocol messagingProtocol;
     private SocketChannel client;
@@ -28,20 +29,21 @@ public class SessionChannelTransport implements Transport {
 
     @Override
     public void connect() {
-        log("Type your name");
+        log("Type your name and password");
         clientName = scanner.next();
+        password = scanner.next();
         messagingProtocol = new MessagingProtocol(clientName);
         try {
             client = SocketChannel.open(address);
             Thread serverInputThread = new Thread(this::receiveServer);
             serverInputThread.start();
-            greeting();
+            registration();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    private void greeting(){
-        byte[] msg = messagingProtocol.registrationSelector().getBytes();
+    private void registration(){
+        byte[] msg = messagingProtocol.registrationSelector(password).getBytes();
         try {
             client.write(ByteBuffer.wrap(msg));
         }
