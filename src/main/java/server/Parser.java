@@ -11,9 +11,11 @@ public class Parser {
     private String password;
     private String type;
 
-    public String parse(String pack) {
+
+    public String parse(String pack) throws IllegalArgumentException{
         var date = new Date();
         var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
+        if (buff.length < 1) throw new IllegalArgumentException("Не");
         type = buff[0];//тип сообщения
         name = buff[1];
         if (type.equals("T_REGISTER")) {
@@ -24,7 +26,8 @@ public class Parser {
             message = buff[2];
             return "(" + formatter.format(date) + ") " + buff[1] + " says: " + buff[2];
         }
-        return "Damn an L.";
+        else throw new IllegalArgumentException("No matching pattern found");
+        //return "Damn an L.";
     }
 
     public String getName() {

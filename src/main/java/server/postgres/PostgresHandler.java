@@ -24,7 +24,7 @@ public final class PostgresHandler {
 
     private void initialize() {
         try {
-            connection = DriverManager.getConnection("jdbc:postgresql:chatlog", username, password);
+            connection = DriverManager.getConnection("jdbc:postgresql:chatlog", username, password);//DataSource скрывает зависимость от бд (в тестах - h2 передается вместо postgres)
             //System.out.println("Database is connected");
         } catch (SQLException e) {
             System.out.println(e.getSQLState() + e.getMessage());
@@ -32,7 +32,7 @@ public final class PostgresHandler {
         }
     }
 
-    public void saveMessage(String name, String message) {
+    public void saveMessage(String name, String message)throws Exception {//отдельный класс MessageRepository для хранения сообщений в БД, для каждой сущности - репозиторий
         try {
             var time = LocalTime.now().truncatedTo(ChronoUnit.SECONDS);
             var date = LocalDate.now();
@@ -45,7 +45,14 @@ public final class PostgresHandler {
 
             results.close();
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            String germanString = e.getMessage();
+            byte[] germanBytes = germanString.getBytes();
+
+            String end = new String(germanBytes, StandardCharsets.US_ASCII);
+
+            System.out.println(e.getMessage() + " " + end);
+            throw new SQLException(e.getMessage());
+            //System.out.println(e.getMessage());
         }
     }
 

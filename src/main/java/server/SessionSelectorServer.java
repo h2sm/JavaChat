@@ -68,9 +68,9 @@ public class SessionSelectorServer implements Runnable {
             if (clientChannel != null) {
                 clientChannel.configureBlocking(false);
                 var clientKey = clientChannel.register(key.selector(), SelectionKey.OP_READ);
-                clientKey.attach(new SelectorProtocol(clientKey, timeout));
+                var sp = new SelectorProtocol(clientKey, timeout);
+                clientKey.attach(sp);
                 keysList.add(clientKey);
-
                 //log("accepted " + clientChannel);
             }
         } catch (Exception e) {
@@ -87,13 +87,18 @@ public class SessionSelectorServer implements Runnable {
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
         private long timeout;
+        private long lastSent = 0l;
         private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
         private boolean isAuthorized = false;
+        private Thread time = new Thread(this::timer);
+        private boolean connected = true;
+
+
 
         public SelectorProtocol(SelectionKey clientKey, int timeout) {
             this.key = clientKey;
             this.parser = new Parser();
-            this.timeout = timeout * 1000;
+            this.timeout = timeout;
         }
 
         public void read() {
@@ -114,8 +119,13 @@ public class SessionSelectorServer implements Runnable {
             }
         }
 
+
         private void readMethod() throws Exception {
             //ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            lastSent = System.currentTimeMillis();
+            if (!time.isAlive()){
+                time.start();
+            }
             if (baos.size() != 0) baos.reset();
             var channel = (SocketChannel) key.channel();
             int readCount = 0;
@@ -139,21 +149,6 @@ public class SessionSelectorServer implements Runnable {
             }
             while (readCount > 0 && !isMessageReceived);
 
-//            if (isMessageReceived) {
-//                var message = new String(baos.toByteArray());
-//                var parsedMSG = parser.parse(message);
-//                var type = parser.getType();
-//                if (checkUser(parser.getName(), parser.getPassword())) {
-//                    postgresHandler.saveMessage(parser.getName(), parsedMSG);
-//                    writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
-//                    for (SelectionKey sk : keysList) {
-//                        if (!key.equals(sk))
-//                            sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
-//                    }
-//                    key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
-//                    isMessageReceived = false;
-//                }
-//            }
         }
 
         private void process() {
@@ -168,7 +163,7 @@ public class SessionSelectorServer implements Runnable {
                 if (type.equals("T_REGISTER")) {
                     sendLastMSG();
                 }
-                postgresHandler.saveMessage(parser.getName(), parsedMSG);
+                saveToSQL(parser.getName(), parsedMSG);
                 writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
                 key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
                 isMessageReceived = false;
@@ -185,6 +180,14 @@ public class SessionSelectorServer implements Runnable {
             }
             return isAuthorized;//такие дела
         }
+        private void saveToSQL(String name, String msg){
+            try {
+                postgresHandler.saveMessage(name, msg);
+            }
+            catch (Exception e){
+                e.printStackTrace();
+            }
+        }
 
         private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
             var channel = (SocketChannel) key.channel();
@@ -195,6 +198,24 @@ public class SessionSelectorServer implements Runnable {
             while (writeCount > 0);
             key.interestOps(SelectionKey.OP_READ);
             writeBuffer.flip();
+        }
+        private void timer(){
+            while (connected){
+                var time = System.currentTimeMillis();
+                System.out.println(time - lastSent + " =" + timeout);
+                if (time - lastSent > timeout && lastSent!=0L){
+                    log("timeout");
+                    closeConnection();
+                    connected=false;
+                }
+                try {
+                    Thread.sleep(2*1000);
+                }
+                catch (InterruptedException e){
+                    e.printStackTrace();
+                }
+            }
+
         }
 
         private void sendLastMSG() {
@@ -213,6 +234,7 @@ public class SessionSelectorServer implements Runnable {
 
         private void closeConnection() {
             key.cancel();
+            time.interrupt();
             if (key.channel() != null) {
                 try {
                     key.channel().close();

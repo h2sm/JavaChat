@@ -3,12 +3,10 @@ package client.core.transport;
 import client.core.Transport;
 import client.core.exception.TransportException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 import static util.Logs.log;
@@ -43,12 +41,12 @@ public class SessionChannelTransport implements Transport {
             e.printStackTrace();
         }
     }
-    private void registration(){
+
+    private void registration() {
         byte[] msg = messagingProtocol.registrationSelector(password).getBytes();
         try {
             client.write(ByteBuffer.wrap(msg));
-        }
-        catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -67,31 +65,24 @@ public class SessionChannelTransport implements Transport {
         var buffer = ByteBuffer.wrap((sendMSG));
         try {
             client.write(buffer);
-            //buffer.flip();
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             e.getCause();
         }
         return "sent";
     }
 
     private void receiveServer() {
-        while (client.isConnected()) {
+        while (client.isConnected() && client.socket().isConnected()) {
             try {
                 buf = ByteBuffer.allocate(1024);
                 buf.clear();
                 client.read(buf);
-                System.out.println(new String(buf.array()));
+                var receivedMSG = new String(buf.array());
+                System.out.println(receivedMSG);
                 buf.flip();
-
-//                while (client.read(buf) > 0) {
-//                    System.out.println(new String(buf.array()));
-//                    buf.rewind();
-                    //buf.clear();
-               // }
             } catch (IOException e) {
-                //System.out.println(e.getMessage());
-                e.printStackTrace();
+                disconnect();
+                //e.printStackTrace();
             }
         }
     }

@@ -23,7 +23,7 @@ public class Starter {
                 new Thread(new PersistSocketServer(host,port,timeout)).start();
             }
             else if (type.equals("selector")){
-                new Thread(new SessionSelectorServer(host,port,timeout)).start();
+                new Thread(new SessionSelectorServer(host,port,timeout)).start();//здесь создать таймер для сообщений
             }
             else {
                 throw new IOException("Explicit server configuration: " + type);
