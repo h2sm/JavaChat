@@ -1,5 +1,8 @@
 package server;
 
+import server.postgres.DBFactory;
+import server.postgres.DBInterface;
+import server.postgres.DBService;
 import server.workers.Request;
 import server.workers.Response;
 
@@ -87,8 +90,9 @@ public class SessionSelectorServer implements Runnable {
         private static final char RS = 0x1E;
         private long timeout;
         private long lastSent = 0l;
+        private DBInterface postgresHandler = DBFactory.getInstance();
         //private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
-        private boolean isAuthorized = true;//false!!!!
+        private boolean isAuthorized = false;
         private Thread time = new Thread(this::timer);
         private boolean connected = true;
         private static ArrayList<String> messagesStack = new ArrayList<>();
@@ -166,19 +170,16 @@ public class SessionSelectorServer implements Runnable {
             switch (userRequest.getMessageType()) {
                 case T_REGISTER -> {
                     if (checkUser(userRequest.getName(), userRequest.getPassword())) {
-                        //receiveHistory();
+                        receiveHistory();
                         openWriting();
                         messagesStack.add(Response.returnResponse(userRequest));
-                        log("USER RECEIVED HISTORY!");
                     } else closeConnection();
                     isMessageReceived = false;
                     break;
                 }
                 case T_MESSAGE -> {
-                    //saveToSQL(userRequest.getName(), userRequest.getMessage());
-                    log("MESSAGE SAVED TO SQL");
+                    saveToSQL(userRequest.getName(), userRequest.getMessage());
                     messagesStack.add(Response.returnResponse(userRequest));
-                    //messagesStack.add(ByteBuffer.wrap(userRequest.getMessage().getBytes()));
                     openWriting();
                     isMessageReceived = false;
                     break;
@@ -189,29 +190,19 @@ public class SessionSelectorServer implements Runnable {
         private void openWriting() {
             for (SelectionKey sk : keysList)
                 sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
-
         }
 
         private boolean checkUser(String name, String pass) {
-//            if (!isAuthorized) {//если клиент пока не авторизован
-//                if (postgresHandler.authenticate(name, pass)) {//мы обращаемся к базе данных
-//                    isAuthorized = true;//если клиент найден, то он авторизован
-//                } else {
-//                    //closeConnection();//если нет клиента, то прощаемся с ним
-//                }
-//            }
-            System.out.println("USER CONNECTED !");
+            if (!isAuthorized) {//если клиент пока не авторизован
+                if (postgresHandler.authenticate(name, pass)) //мы обращаемся к базе данных
+                    isAuthorized = true;//если клиент найден, то он авторизован
+            }
             return isAuthorized;//такие дела
         }
 
         private void saveToSQL(String name, String msg) {
-            try {
-                //postgresHandler.saveMessage(name, msg);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            postgresHandler.saveMessage(name, msg);
         }
-
 
         private void timer() {
             while (connected) {
@@ -228,16 +219,11 @@ public class SessionSelectorServer implements Runnable {
                     e.printStackTrace();
                 }
             }
-
         }
 
         private void receiveHistory() {
-            //var msges = postgresHandler.returnLast20Messages();
-            var msges = new ArrayList<String>();
-            for (String s : msges) {
-                //messagesStack.add(ByteBuffer.wrap(s.getBytes()));
-            }
-            //return msges;
+            var msges = postgresHandler.loadMessages();
+            messagesStack.addAll(msges);
         }
 
         private void closeConnection() {
