@@ -15,7 +15,7 @@ public class Parser {
     public String parse(String pack) throws IllegalArgumentException{
         var date = new Date();
         var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
-        if (buff.length < 1) throw new IllegalArgumentException("Не");
+        if (buff.length < 1) throw new IllegalArgumentException("Illegal argument found");
         type = buff[0];//тип сообщения
         name = buff[1];
         if (type.equals("T_REGISTER")) {

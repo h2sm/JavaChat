@@ -1,7 +1,7 @@
 package server;
 
-
-import server.postgres.PostgresHandler;
+import server.workers.Request;
+import server.workers.Response;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -79,25 +79,23 @@ public class SessionSelectorServer implements Runnable {
     }
 
     private static class SelectorProtocol {
-        private Parser parser;
         private final SelectionKey key;
         private static ByteBuffer readBuffer = ByteBuffer.allocate(1024);
         private static ByteBuffer writeBuffer;
-        private ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        private static ByteArrayOutputStream baos = new ByteArrayOutputStream();
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
         private long timeout;
         private long lastSent = 0l;
-        private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
-        private boolean isAuthorized = false;
+        //private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
+        private boolean isAuthorized = true;//false!!!!
         private Thread time = new Thread(this::timer);
         private boolean connected = true;
-
-
+        private static ArrayList<String> messagesStack = new ArrayList<>();
+        private static int counter = 0;
 
         public SelectorProtocol(SelectionKey clientKey, int timeout) {
             this.key = clientKey;
-            this.parser = new Parser();
             this.timeout = timeout;
         }
 
@@ -119,13 +117,9 @@ public class SessionSelectorServer implements Runnable {
             }
         }
 
-
         private void readMethod() throws Exception {
-            //ByteArrayOutputStream baos = new ByteArrayOutputStream();
             lastSent = System.currentTimeMillis();
-            if (!time.isAlive()){
-                time.start();
-            }
+            if (!time.isAlive()) time.start();
             if (baos.size() != 0) baos.reset();
             var channel = (SocketChannel) key.channel();
             int readCount = 0;
@@ -148,88 +142,102 @@ public class SessionSelectorServer implements Runnable {
                 }
             }
             while (readCount > 0 && !isMessageReceived);
-
-        }
-
-        private void process() {
-            var message = new String(baos.toByteArray());
-            var parsedMSG = parser.parse(message);
-            var type = parser.getType();
-            for (SelectionKey sk : keysList) {
-                if (!key.equals(sk))
-                    sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
-            }
-            if (checkUser(parser.getName(), parser.getPassword())) {
-                if (type.equals("T_REGISTER")) {
-                    sendLastMSG();
-                }
-                saveToSQL(parser.getName(), parsedMSG);
-                writeBuffer = ByteBuffer.wrap((parsedMSG).getBytes()); //+RS
-                key.interestOps(SelectionKey.OP_WRITE);//нашему тоже говорим
-                isMessageReceived = false;
-            }
-        }
-
-        private boolean checkUser(String name, String pass) {
-            if (!isAuthorized) {//если клиент пока не авторизован
-                if (postgresHandler.authenticate(name, pass)) {//мы обращаемся к базе данных
-                    isAuthorized = true;//если клиент найден, то он авторизован
-                } else {
-                    closeConnection();//если нет клиента, то прощаемся с ним
-                }
-            }
-            return isAuthorized;//такие дела
-        }
-        private void saveToSQL(String name, String msg){
-            try {
-                postgresHandler.saveMessage(name, msg);
-            }
-            catch (Exception e){
-                e.printStackTrace();
-            }
         }
 
         private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
             var channel = (SocketChannel) key.channel();
-            int writeCount;
-            do {
-                writeCount = channel.write(writeBuffer);
+            ++counter;
+            for (String b : messagesStack) {
+                writeBuffer = ByteBuffer.wrap(b.getBytes());
+                channel.write(writeBuffer);
             }
-            while (writeCount > 0);
+            if (keysList.size() == counter) {
+                log("cleared");
+                messagesStack.clear();
+                counter = 0;
+            }
             key.interestOps(SelectionKey.OP_READ);
             writeBuffer.flip();
         }
-        private void timer(){
-            while (connected){
+
+        private void process() {
+            var message = new String(baos.toByteArray());
+            var userRequest = new Request(message);
+            switch (userRequest.getMessageType()) {
+                case T_REGISTER -> {
+                    if (checkUser(userRequest.getName(), userRequest.getPassword())) {
+                        //receiveHistory();
+                        openWriting();
+                        messagesStack.add(Response.returnResponse(userRequest));
+                        log("USER RECEIVED HISTORY!");
+                    } else closeConnection();
+                    isMessageReceived = false;
+                    break;
+                }
+                case T_MESSAGE -> {
+                    //saveToSQL(userRequest.getName(), userRequest.getMessage());
+                    log("MESSAGE SAVED TO SQL");
+                    messagesStack.add(Response.returnResponse(userRequest));
+                    //messagesStack.add(ByteBuffer.wrap(userRequest.getMessage().getBytes()));
+                    openWriting();
+                    isMessageReceived = false;
+                    break;
+                }
+            }
+        }
+
+        private void openWriting() {
+            for (SelectionKey sk : keysList)
+                sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+
+        }
+
+        private boolean checkUser(String name, String pass) {
+//            if (!isAuthorized) {//если клиент пока не авторизован
+//                if (postgresHandler.authenticate(name, pass)) {//мы обращаемся к базе данных
+//                    isAuthorized = true;//если клиент найден, то он авторизован
+//                } else {
+//                    //closeConnection();//если нет клиента, то прощаемся с ним
+//                }
+//            }
+            System.out.println("USER CONNECTED !");
+            return isAuthorized;//такие дела
+        }
+
+        private void saveToSQL(String name, String msg) {
+            try {
+                //postgresHandler.saveMessage(name, msg);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+
+        private void timer() {
+            while (connected) {
                 var time = System.currentTimeMillis();
-                System.out.println(time - lastSent + " =" + timeout);
-                if (time - lastSent > timeout && lastSent!=0L){
+                //System.out.println(time - lastSent + " =" + timeout);
+                if (time - lastSent > timeout && lastSent != 0L) {
                     log("timeout");
                     closeConnection();
-                    connected=false;
+                    connected = false;
                 }
                 try {
-                    Thread.sleep(2*1000);
-                }
-                catch (InterruptedException e){
+                    Thread.sleep(2 * 1000);
+                } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
 
         }
 
-        private void sendLastMSG() {
-            var messages = postgresHandler.returnLast20Messages();
-            var channel = (SocketChannel) key.channel();
-            for (String msg : messages) {
-                var test = msg+"\n";
-                var buff = ByteBuffer.wrap(test.getBytes());
-                try {
-                    channel.write(buff);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        private void receiveHistory() {
+            //var msges = postgresHandler.returnLast20Messages();
+            var msges = new ArrayList<String>();
+            for (String s : msges) {
+                //messagesStack.add(ByteBuffer.wrap(s.getBytes()));
             }
+            //return msges;
         }
 
         private void closeConnection() {

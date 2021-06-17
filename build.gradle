@@ -15,10 +15,15 @@ dependencies {
     testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.1'
     implementation group: 'org.postgresql', name: 'postgresql', version: '42.1.4'
     testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.19.0'
+    testImplementation group: 'com.h2database', name: 'h2', version: '1.4.200'
+    compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
+    annotationProcessor group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
+    testCompileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
+    testAnnotationProcessor group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
 
 }
 
-test{
+test {
     useJUnitPlatform()
 }
 mainClassName = 'loader.Starter'
