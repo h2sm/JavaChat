@@ -153,7 +153,6 @@ public class SessionSelectorServer implements Runnable {
         private void writeMethod() throws IOException {//наш клиент начинает писать в свой канал
             var channel = (SocketChannel) key.channel();
             ++counter;
-            ;
             for (String b : messagesStack) {
                 writeBuffer = ByteBuffer.wrap(b.getBytes());
                 channel.write(writeBuffer);

@@ -96,20 +96,24 @@ public class PersistSocketServer implements Runnable {
                 var receivedString = readInputStream();
                 var req = new Request(receivedString);
                 switch (req.getMessageType()) {
-                    case T_REGISTER -> {
-                        if (checkUser(req.getName(), req.getPassword())) {
-                            receiveHistory();
-                            stack.add(Response.returnResponse(req));
-                            sendMessage(req);
-                        } else closeConnection();
-                    }
-                    case T_MESSAGE -> {
-                        saveToSQL(req.getName(), req.getMessage());
-                        stack.add(Response.returnResponse(req));
-                        sendMessage(req);
-                    }
+                    case T_REGISTER -> registering(req);
+                    case T_MESSAGE -> messaging(req);
                 }
             }
+        }
+
+        private void registering(Request r) {
+            if (checkUser(r.getName(), r.getPassword())) {
+                receiveHistory();
+                stack.add(Response.returnResponse(r));
+                sendMessage(r);
+            } else closeConnection();
+        }
+
+        private void messaging(Request r) {
+            saveToSQL(r.getName(), r.getMessage());
+            stack.add(Response.returnResponse(r));
+            sendMessage(r);
         }
 
         private void sendMessage(Request request) {
