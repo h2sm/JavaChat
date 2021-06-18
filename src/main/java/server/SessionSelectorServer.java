@@ -1,5 +1,6 @@
 package server;
 
+import lombok.SneakyThrows;
 import server.postgres.DBFactory;
 import server.postgres.DBInterface;
 import server.workers.Request;
@@ -87,7 +88,7 @@ public class SessionSelectorServer implements Runnable {
         private static ByteArrayOutputStream baos = new ByteArrayOutputStream();
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
-        private long timeout;
+        private final long timeout;
         private long lastSent = 0L;
         private DBInterface postgresHandler = DBFactory.getInstance();
         private boolean isAuthorized = false;
@@ -101,6 +102,7 @@ public class SessionSelectorServer implements Runnable {
             this.timeout = timeout;
         }
 
+        @SneakyThrows
         public void read() {
             try {
                 readMethod();
@@ -110,6 +112,7 @@ public class SessionSelectorServer implements Runnable {
             }
         }
 
+        @SneakyThrows
         public void write() {
             try {
                 writeMethod();
@@ -119,6 +122,7 @@ public class SessionSelectorServer implements Runnable {
             }
         }
 
+        @SneakyThrows
         private void readMethod() throws Exception {
             lastSent = System.currentTimeMillis();
             if (!time.isAlive()) time.start();
@@ -146,9 +150,10 @@ public class SessionSelectorServer implements Runnable {
             while (readCount > 0 && !isMessageReceived);
         }
 
-        private void writeMethod() throws Exception {//наш клиент начинает писать в свой канал
+        private void writeMethod() throws IOException {//наш клиент начинает писать в свой канал
             var channel = (SocketChannel) key.channel();
             ++counter;
+            ;
             for (String b : messagesStack) {
                 writeBuffer = ByteBuffer.wrap(b.getBytes());
                 channel.write(writeBuffer);
@@ -165,27 +170,29 @@ public class SessionSelectorServer implements Runnable {
             var message = new String(baos.toByteArray());
             var userRequest = new Request(message);
             switch (userRequest.getMessageType()) {
-                case T_REGISTER -> {
-                    if (checkUser(userRequest.getName(), userRequest.getPassword())) {
-                        receiveHistory();
-                        openWriting();
-                        messagesStack.add(Response.returnResponse(userRequest));
-                    } else closeConnection();
-                    isMessageReceived = false;
-                }
-                case T_MESSAGE -> {
-                    saveToSQL(userRequest.getName(), userRequest.getMessage());
-                    messagesStack.add(Response.returnResponse(userRequest));
-                    openWriting();
-                    isMessageReceived = false;
-                }
+                case T_REGISTER -> registering(userRequest);
+                case T_MESSAGE -> messaging(userRequest);
             }
+        }
+
+        private void registering(Request r) {
+            if (checkUser(r.getName(), r.getPassword())) {
+                receiveHistory();
+                openWriting();
+                messagesStack.add(Response.returnResponse(r));
+            } else closeConnection();
+            isMessageReceived = false;
+        }
+
+        private void messaging(Request r) {
+            saveToSQL(r.getName(), r.getMessage());
+            messagesStack.add(Response.returnResponse(r));
+            openWriting();
+            isMessageReceived = false;
         }
 
         private void openWriting() {
             keysList.forEach(key -> key.interestOpsOr(SelectionKey.OP_WRITE));
-//            for (SelectionKey sk : keysList)
-//                sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
         }
 
         private boolean checkUser(String name, String pass) {
@@ -200,26 +207,9 @@ public class SessionSelectorServer implements Runnable {
             postgresHandler.saveMessage(name, msg);
         }
 
-        private void timer() {
-            while (connected) {
-                var time = System.currentTimeMillis();
-                //System.out.println(time - lastSent + " =" + timeout);
-                if (time - lastSent > timeout && lastSent != 0L) {
-                    log("timeout");
-                    closeConnection();
-                    connected = false;
-                }
-                try {
-                    Thread.sleep(2 * 1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
 
         private void receiveHistory() {
-            var msges = postgresHandler.loadMessages();
-            messagesStack.addAll(msges);
+            messagesStack.addAll(postgresHandler.loadMessages());
         }
 
         private void closeConnection() {
@@ -235,6 +225,21 @@ public class SessionSelectorServer implements Runnable {
                 }
             }
         }
-    }
 
+        private void timer() {
+            while (connected) {
+                var time = System.currentTimeMillis();
+                if (time - lastSent > timeout && lastSent != 0L) {
+                    log("timeout");
+                    closeConnection();
+                    connected = false;
+                }
+                try {
+                    Thread.sleep(2 * 1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 }

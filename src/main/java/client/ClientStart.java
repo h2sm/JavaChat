@@ -1,7 +1,4 @@
 package client;
-
-
-
 import static util.Logs.log;
 
 public class ClientStart implements Runnable{
