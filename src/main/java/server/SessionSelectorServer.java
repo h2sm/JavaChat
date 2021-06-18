@@ -91,7 +91,6 @@ public class SessionSelectorServer implements Runnable {
         private long timeout;
         private long lastSent = 0l;
         private DBInterface postgresHandler = DBFactory.getInstance();
-        //private static PostgresHandler postgresHandler = PostgresHandler.getInstance("docker", "docker");
         private boolean isAuthorized = false;
         private Thread time = new Thread(this::timer);
         private boolean connected = true;
@@ -156,7 +155,6 @@ public class SessionSelectorServer implements Runnable {
                 channel.write(writeBuffer);
             }
             if (keysList.size() == counter) {
-                log("cleared");
                 messagesStack.clear();
                 counter = 0;
             }

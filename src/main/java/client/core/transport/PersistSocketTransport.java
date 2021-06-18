@@ -8,15 +8,15 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
-
+import static client.core.transport.MessagingProtocol.*;
 import static util.Logs.log;
 
 public class PersistSocketTransport implements Transport {
     private Socket socket;
     private String name;
+    private String password;
     private final Scanner scanner = new Scanner(System.in);
     private PrintWriter out;
-    private MessagingProtocol messagingProtocol;
     private final String host;
     private final int port, timeout;
     public PersistSocketTransport(String host, int port, int timeout){
@@ -35,8 +35,7 @@ public class PersistSocketTransport implements Transport {
     }
 
     private void tryConnect() throws Exception {
-        var name = askForName();
-        messagingProtocol = new MessagingProtocol(name);
+        askForCredits();
         socket = new Socket();
         socket.connect(new InetSocketAddress(host, port));
         socket.setSoTimeout(timeout*1000);
@@ -44,17 +43,17 @@ public class PersistSocketTransport implements Transport {
         readMessages();
     }
 
-    private String askForName() {
-        log("Enter your name");
+    private void askForCredits() {
+        log("Enter your name and password");
         name = scanner.next();
-        return name;
+        password = scanner.next();
     }
 
     private void registerOnServer() throws IOException {
         if (socket.isConnected()) {
             out = new PrintWriter(socket.getOutputStream(), true,
                     StandardCharsets.UTF_8);//отдаем
-            out.println(messagingProtocol.constructRegistration());
+            out.println(registrationSocket(name, password));
         }
     }
 
@@ -79,7 +78,7 @@ public class PersistSocketTransport implements Transport {
 
     private String tryConverse(String message) throws Exception {
         if (message != null)
-            out.println(messagingProtocol.constructMessage(message));
+            out.println(messageSocket(name, message));
         return "sent!";
     }
 

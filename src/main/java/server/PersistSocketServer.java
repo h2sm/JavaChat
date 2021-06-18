@@ -1,11 +1,14 @@
 package server;
 
+import server.postgres.DBFactory;
+import server.postgres.DBInterface;
+import server.workers.Request;
+import server.workers.Response;
+
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,14 +51,16 @@ public class PersistSocketServer implements Runnable {
         private final Socket socket;
         private final BufferedInputStream in;
         private final PrintWriter out;
-        private Parser parser;
+        private final DBInterface postgresHandler;
+        private boolean isAuthorized = false;
+        private static ArrayList<String> stack = new ArrayList<>();
 
         public EchoProtocol(ArrayList<EchoProtocol> echoclients, Socket socket) throws Exception {
             this.socket = socket;
             clients = echoclients;
             in = new BufferedInputStream(socket.getInputStream());
             out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-            this.parser = new Parser();
+            postgresHandler = DBFactory.getInstance();
         }
 
         @Override
@@ -90,27 +95,62 @@ public class PersistSocketServer implements Runnable {
         private void tryRun() throws Exception {
             while (true) {
                 var receivedString = readInputStream();
-                var parsedMessage = parser.parse(receivedString);
-                sendMessageToAll(parsedMessage);
+                var req = new Request(receivedString);
+                switch (req.getMessageType()) {
+                    case T_REGISTER -> {
+                        if (checkUser(req.getName(), req.getPassword())) {
+                            receiveHistory();
+                            stack.add(Response.returnResponse(req));
+                            sendMessage(req);
+                        } else closeConnection();
+                    }
+                    case T_MESSAGE -> {
+                        saveToSQL(req.getName(), req.getMessage());
+                        stack.add(Response.returnResponse(req));
+                        sendMessage(req);
+                    }
+                }
             }
         }
 
-        private void sendMessageToAll(String msg) {
-            for (EchoProtocol client : clients) {
-                client.out.println(msg);
+        private void sendMessage(Request request) {
+            switch (request.getMessageType()) {
+                case T_REGISTER -> {
+                    stack.forEach(out::println);
+                    stack.clear();
+                }
+                case T_MESSAGE -> {
+                    stack.forEach(msg -> clients.forEach(client -> client.out.println(msg)));
+                    stack.clear();
+                }
+            }
+        }
 
+        private void saveToSQL(String name, String msg) {
+            log("SAVED TO SQL");
+            postgresHandler.saveMessage(name, msg);
+        }
+
+        private boolean checkUser(String name, String pass) {
+            if (!isAuthorized) {
+                if (postgresHandler.authenticate(name, pass))
+                    isAuthorized = true;
+            }
+            return isAuthorized;
+        }
+
+        private void receiveHistory() {
+            //stack.add("HISTORY MSG");
+            stack.addAll(postgresHandler.loadMessages());
+        }
+
+        private void closeConnection() {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
 
-//    private static class Parser {
-//        private static final char GS = 0x1D;
-//        private static SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
-//        public static String parse(String pack) {
-//            var date = new Date();
-//            var buff = pack.split(String.valueOf(GS)); //Arrays.toString(<>)
-//            if (buff[0].equals("T_REGISTER")) return "(" + formatter.format(date) + ")" + " New connected user " + buff[1];
-//            return "(" + formatter.format(date) + ") " + buff[1] + " says: " + buff[2];
-//        }
-//    }
 }

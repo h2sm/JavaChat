@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Scanner;
+import static client.core.transport.MessagingProtocol.*;
 
 import static util.Logs.log;
 
@@ -31,7 +32,6 @@ public class SessionChannelTransport implements Transport {
         log("Type your name and password");
         clientName = scanner.next();
         password = scanner.next();
-        messagingProtocol = new MessagingProtocol(clientName);
         try {
             client = SocketChannel.open(address);
             Thread serverInputThread = new Thread(this::receiveServer);
@@ -43,7 +43,7 @@ public class SessionChannelTransport implements Transport {
     }
 
     private void registration() {
-        byte[] msg = messagingProtocol.registrationSelector(password).getBytes();
+        byte[] msg = registrationSelector(clientName, password);
         try {
             client.write(ByteBuffer.wrap(msg));
         } catch (IOException e) {
@@ -61,7 +61,7 @@ public class SessionChannelTransport implements Transport {
     }
 
     private String tryConverse(String message) throws Exception {
-        var sendMSG = messagingProtocol.messageSelector(message);
+        var sendMSG = messageSelector(clientName, message);
         var buffer = ByteBuffer.wrap((sendMSG));
         try {
             client.write(buffer);
