@@ -51,7 +51,7 @@ public class PersistSocketServer implements Runnable {
         private final Socket socket;
         private final BufferedInputStream in;
         private final PrintWriter out;
-        private final DBInterface postgresHandler;
+        private final DBInterface postgresHandler = DBFactory.getInstance();
         private boolean isAuthorized = false;
         private static ArrayList<String> stack = new ArrayList<>();
 
@@ -60,7 +60,6 @@ public class PersistSocketServer implements Runnable {
             clients = echoclients;
             in = new BufferedInputStream(socket.getInputStream());
             out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-            postgresHandler = DBFactory.getInstance();
         }
 
         @Override
@@ -127,7 +126,6 @@ public class PersistSocketServer implements Runnable {
         }
 
         private void saveToSQL(String name, String msg) {
-            log("SAVED TO SQL");
             postgresHandler.saveMessage(name, msg);
         }
 
@@ -140,7 +138,6 @@ public class PersistSocketServer implements Runnable {
         }
 
         private void receiveHistory() {
-            //stack.add("HISTORY MSG");
             stack.addAll(postgresHandler.loadMessages());
         }
 

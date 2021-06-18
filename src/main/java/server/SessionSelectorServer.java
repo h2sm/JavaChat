@@ -2,7 +2,6 @@ package server;
 
 import server.postgres.DBFactory;
 import server.postgres.DBInterface;
-import server.postgres.DBService;
 import server.workers.Request;
 import server.workers.Response;
 
@@ -89,7 +88,7 @@ public class SessionSelectorServer implements Runnable {
         private boolean isMessageReceived = false;
         private static final char RS = 0x1E;
         private long timeout;
-        private long lastSent = 0l;
+        private long lastSent = 0L;
         private DBInterface postgresHandler = DBFactory.getInstance();
         private boolean isAuthorized = false;
         private Thread time = new Thread(this::timer);
@@ -173,21 +172,20 @@ public class SessionSelectorServer implements Runnable {
                         messagesStack.add(Response.returnResponse(userRequest));
                     } else closeConnection();
                     isMessageReceived = false;
-                    break;
                 }
                 case T_MESSAGE -> {
                     saveToSQL(userRequest.getName(), userRequest.getMessage());
                     messagesStack.add(Response.returnResponse(userRequest));
                     openWriting();
                     isMessageReceived = false;
-                    break;
                 }
             }
         }
 
         private void openWriting() {
-            for (SelectionKey sk : keysList)
-                sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
+            keysList.forEach(key -> key.interestOpsOr(SelectionKey.OP_WRITE));
+//            for (SelectionKey sk : keysList)
+//                sk.interestOps(SelectionKey.OP_WRITE);//говорим другим клиентам, что у нас тут есть интересный контент
         }
 
         private boolean checkUser(String name, String pass) {

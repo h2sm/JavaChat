@@ -1,9 +1,7 @@
 package server.workers;
 
 import org.junit.jupiter.api.Test;
-import server.Parser;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.assertj.core.api.Assertions.*;
 
 

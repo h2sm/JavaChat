@@ -76,38 +76,35 @@ public class PersistSocketTransport implements Transport {
         }
     }
 
-    private String tryConverse(String message) throws Exception {
+    private String tryConverse(String message)  {
         if (message != null)
             out.println(messageSocket(name, message));
         return "sent!";
     }
 
     private void readMessages() {
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                BufferedReader in = null;
-                try {
-                    in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
-                            StandardCharsets.UTF_8));
-                } catch (Exception e) {
-                    e.printStackTrace();
+        Thread thread = new Thread(() -> {
+            BufferedReader in = null;
+            try {
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
+                        StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            String line;
+            try {
+                while (!socket.isClosed()) {
+                    line = in.readLine();
+                    if (!line.equals("null"))
+                        System.out.println(line );
                 }
-                String line;
+            } catch (Exception e) {
                 try {
-                    while (!socket.isClosed()) {
-                        line = in.readLine();
-                        if (!line.equals("null"))
-                            System.out.println(line );
-                    }
-                } catch (Exception e) {
-                    try {
-                        tryConnectAgain();
-                    } catch (Exception exception) {
-                        exception.printStackTrace();
-                    }
+                    tryConnectAgain();
+                } catch (Exception exception) {
+                    exception.printStackTrace();
+                }
 
-                }
             }
         });
         thread.start();
